@@ -21,10 +21,14 @@ end
 
 bidsym(w,s...) = string("__bid", w, "_", s...)
 
+abstract DecimalFloatingPoint <: FloatingPoint
+Base.get_rounding{T<:DecimalFloatingPoint}(::Type{T}) = rounding_c2j[unsafe_load(rounding)+1]
+Base.set_rounding{T<:DecimalFloatingPoint}(::Type{T}, r::RoundingMode) = unsafe_store!(rounding, rounding_j2c[r])
+
 for w in (32,64,128)
     BID = symbol(string("Dec",w))
     @eval begin
-        bitstype $w $BID <: FloatingPoint
+        bitstype $w $BID <: DecimalFloatingPoint
 
         function Base.parse(::Type{$BID}, s::AbstractString)
             x = ccall(($(bidsym(w,"from_string")), libbid), $BID, (Ptr{UInt8},), s)
@@ -39,9 +43,6 @@ for w in (32,64,128)
             ccall(($(bidsym(w,"to_string")), libbid), Void, (Ptr{UInt8}, $BID), _buffer, x)
             write(io, pointer(_buffer), ccall(:strlen, Csize_t, (Ptr{UInt8},), _buffer))
         end
-
-        Base.get_rounding(::Type{$BID}) = rounding_c2j[unsafe_load(rounding)+1]
-        Base.set_rounding(::Type{$BID}, r::RoundingMode) = unsafe_store!(rounding, rounding_j2c[r])
 
         Base.fma(x::$BID, y::$BID, z::$BID) = ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID), x, y, z)
         Base.muladd(x::$BID, y::$BID, z::$BID) = fma(x,y,z) # faster than x+y*z
