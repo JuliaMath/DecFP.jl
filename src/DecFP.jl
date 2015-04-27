@@ -9,7 +9,18 @@ const _buffer = Array(UInt8, 1024)
 
 import Base.promote_rule
 
+# global pointers and dicts must be initialized at runtime (via __init__)
+function __init__()
+    global const rounding = cglobal((:__bid_IDEC_glbround, libbid), Cuint) # rounding mode
+    global const flags = cglobal((:__bid_IDEC_glbflags, libbid), Cuint) # exception status
+
+    # rounding modes, from bid_functions.h
+    global const rounding_c2j = [RoundNearest, RoundDown, RoundUp, RoundToZero, RoundFromZero]
+    global const rounding_j2c = [ rounding_c2j[i]=>Cuint(i-1) for i in 1:length(rounding_c2j) ]
+end
+
 bidsym(w,s...) = string("__bid", w, "_", s...)
+
 for w in (32,64,128)
     BID = symbol(string("Dec",w))
     @eval begin
@@ -28,8 +39,11 @@ for w in (32,64,128)
             ccall(($(bidsym(w,"to_string")), libbid), Void, (Ptr{UInt8}, $BID), _buffer, x)
             write(io, pointer(_buffer), ccall(:strlen, Csize_t, (Ptr{UInt8},), _buffer))
         end
+
+        Base.get_rounding(::Type{$BID}) = rounding_c2j[unsafe_load(rounding)+1]
+        Base.set_rounding(::Type{$BID}, r::RoundingMode) = unsafe_store!(rounding, rounding_j2c[r])
     end
-    
+
     for (f,c) in ((:isnan,"isNaN"), (:isinf,"isInf"), (:isfinite,"isFinite"))
         @eval Base.$f(x::$BID) = ccall(($(bidsym(w,c)), libbid), Cint, ($BID,), x) != 0
     end
