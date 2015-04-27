@@ -1,0 +1,5 @@
+module DecFP
+
+# package code goes here
+
+end # module
