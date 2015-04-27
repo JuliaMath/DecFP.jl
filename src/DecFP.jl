@@ -49,7 +49,7 @@ for w in (32,64,128)
         Base.$(:-)(x::$BID) = ccall(($(bidsym(w,"negate")), libbid), $BID, ($BID,), x)
     end
 
-    for (f,c) in ((:isnan,"isNaN"), (:isinf,"isInf"), (:isfinite,"isFinite"))
+    for (f,c) in ((:isnan,"isNaN"), (:isinf,"isInf"), (:isfinite,"isFinite"), (:issubnormal,"isSubnormal"))
         @eval Base.$f(x::$BID) = ccall(($(bidsym(w,c)), libbid), Cint, ($BID,), x) != 0
     end
 
