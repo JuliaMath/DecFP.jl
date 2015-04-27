@@ -1,5 +1,81 @@
 module DecFP
+export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str
 
-# package code goes here
+using Compat
+
+const libbid = joinpath(dirname(@__FILE__), "..", "deps", "libbid$WORD_SIZE")
+
+const _buffer = Array(UInt8, 1024)
+
+import Base.promote_rule
+
+bidsym(w,s...) = string("__bid", w, "_", s...)
+for w in (32,64,128)
+    BID = symbol(string("Dec",w))
+    @eval begin
+        bitstype $w $BID <: FloatingPoint
+
+        function Base.parse(::Type{$BID}, s::AbstractString)
+            x = ccall(($(bidsym(w,"from_string")), libbid), $BID, (Ptr{UInt8},), s)
+            if isnan(x)
+                # fixme: check whether s is "nan" etc.
+                throw(ArgumentError("invalid number format $s"))
+            end
+            return x
+        end
+
+        function Base.show(io::IO, x::$BID)
+            ccall(($(bidsym(w,"to_string")), libbid), Void, (Ptr{UInt8}, $BID), _buffer, x)
+            write(io, pointer(_buffer), ccall(:strlen, Csize_t, (Ptr{UInt8},), _buffer))
+        end
+    end
+    
+    for (f,c) in ((:isnan,"isNaN"), (:isinf,"isInf"), (:isfinite,"isFinite"))
+        @eval Base.$f(x::$BID) = ccall(($(bidsym(w,c)), libbid), Cint, ($BID,), x) != 0
+    end
+
+    for (f,c) in ((:+,"add"), (:-,"sub"), (:*,"mul"), (:/, "div"), (:hypot,"hypot"), (:atan2,"atan2"), (:mod,"fmod"), (:^,"pow"))
+        @eval Base.$f(x::$BID, y::$BID) = ccall(($(bidsym(w,c)), libbid), $BID, ($BID,$BID), x, y)
+    end
+
+    @eval Base.fma(x::$BID, y::$BID, z::$BID) = ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID), x, y, z)
+
+    for f in (:exp,:log,:sin,:cos,:tan,:asin,:acos,:atan,:sinh,:cosh,:tanh,:asinh,:acosh,:atanh,:log1p,:expm1,:log10,:log2,:exp2,:exp10,:erf,:erfc,:lgamma,:sqrt,:cbrt)
+        @eval Base.$f(x::$BID) = ccall(($(bidsym(w,f)), libbid), $BID, ($BID,), x)
+    end
+    @eval Base.gamma(x::$BID) = ccall(($(bidsym(w,"tgamma")), libbid), $BID, ($BID,), x)
+
+    for (f,c) in ((:(==),"quiet_equal"), (:>,"quiet_greater"), (:<,"quiet_less"), (:(>=), "quiet_greater_equal"), (:(<=), "quiet_less_equal"))
+        @eval Base.$f(x::$BID, y::$BID) = ccall(($(bidsym(w,c)), libbid), Cint, ($BID,$BID), x, y) != 0
+    end
+
+    for T in (Float32,Float64)
+        bT = string("binary",sizeof(T)*8)
+        @eval begin
+            Base.convert(::Type{$T}, x::$BID) = ccall(($(bidsym(w,"to_",bT)), libbid), $T, ($BID,), x)
+            Base.convert(::Type{$BID}, x::$T) = ccall(($(string("__",bT,"_to_","bid",w)), libbid), $BID, ($T,), x)
+        end
+    end
+
+    for w′ in (32,64,128)
+        BID′ = symbol(string("Dec",w′))
+        if w > w′
+            @eval promote_rule(::Type{$BID}, ::Type{$BID′}) = $BID
+        end
+
+        # promote binary*decimal -> binary, on the theory that binary "pollutes" the decimal; I can't find a standard for this
+        if max(w,w′) <= 64
+            FP′ = symbol(string("Float",w′))
+            @eval promote_rule(::Type{$BID}, ::Type{$FP′}) = $(symbol(string("Float",max(w,w′))))
+        end
+    end
+
+    @eval promote_rule{T<:Union(Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Int128,UInt128)}(::Type{$BID}, ::Type{T}) = $BID
+end # widths w
+
+macro d_str(s, flags...) parse(Dec64, s) end
+macro d32_str(s, flags...) parse(Dec32, s) end
+macro d64_str(s, flags...) parse(Dec64, s) end
+macro d128_str(s, flags...) parse(Dec128, s) end
 
 end # module
