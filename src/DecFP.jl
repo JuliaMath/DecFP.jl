@@ -57,16 +57,34 @@ for w in (32,64,128)
         end
     end
 
+    @eval begin
+        const $(symbol(string("one",w))) = parse($BID, "1")
+        const $(symbol(string("zero",w))) = parse($BID, "0")
+        Base.one(::Union(Type{$BID},$BID)) = $(symbol(string("one",w)))
+        Base.zero(::Union(Type{$BID},$BID)) = $(symbol(string("zero",w)))
+    end
+
+    for c in (:π, :e, :γ, :catalan, :φ)
+        @eval begin
+            const $(symbol(string(c,w))) = parse($BID, with_bigfloat_precision(256) do
+                                                           string(BigFloat($c))
+                                                       end)
+            Base.convert(::Type{$BID}, ::MathConst{$(QuoteNode(c))}) = $(symbol(string(c,w)))
+            promote_rule(::Type{$BID}, ::Type{MathConst}) = $BID
+        end
+    end
+
     for w′ in (32,64,128)
         BID′ = symbol(string("Dec",w′))
         if w > w′
             @eval promote_rule(::Type{$BID}, ::Type{$BID′}) = $BID
         end
 
-        # promote binary*decimal -> binary, on the theory that binary "pollutes" the decimal; I can't find a standard for this
-        if max(w,w′) <= 64
+        # promote binary*decimal -> decimal, for consistency with other operations above
+        # (there doesn't seem to be any clear standard for this)
+        if w′ <= 64
             FP′ = symbol(string("Float",w′))
-            @eval promote_rule(::Type{$BID}, ::Type{$FP′}) = $(symbol(string("Float",max(w,w′))))
+            @eval promote_rule(::Type{$BID}, ::Type{$FP′}) = $(symbol(string("Dec",max(w,w′))))
         end
     end
 
