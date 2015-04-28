@@ -8,6 +8,7 @@ const libbid = joinpath(dirname(@__FILE__), "..", "deps", "libbid$WORD_SIZE")
 const _buffer = Array(UInt8, 1024)
 
 import Base.promote_rule
+import Core.Intrinsics: box, unbox, bswap_int
 
 # global pointers and dicts must be initialized at runtime (via __init__)
 function __init__()
@@ -27,18 +28,43 @@ Base.set_rounding{T<:DecimalFloatingPoint}(::Type{T}, r::RoundingMode) = unsafe_
 
 for w in (32,64,128)
     BID = symbol(string("Dec",w))
-    @eval begin
-        bitstype $w $BID <: DecimalFloatingPoint
+    @eval bitstype $w $BID <: DecimalFloatingPoint
+end
 
-        function Base.parse(::Type{$BID}, s::AbstractString)
-            x = ccall(($(bidsym(w,"from_string")), libbid), $BID, (Ptr{UInt8},), s)
-            if isnan(x)
-                # fixme: check whether s is "nan" etc.
-                throw(ArgumentError("invalid number format $s"))
-            end
-            return x
+# quickly check whether s begins with "±nan"
+function isnanstr(s::AbstractString)
+    i = start(s)
+    while !done(s, i)
+        c, i = next(s, i)
+        isspace(c) || break
+    end
+    done(s, i) && return false
+    if (c == '+' || c == '-')
+        c, i = next(s, i)
+        done(s, i) && return false
+    end
+    lowercase(c) == 'n' || return false
+    c, i = next(s, i)
+    (!done(s, i) && lowercase(c) == 'a') || return false
+    c, i = next(s, i)
+    (done(s, i) && lowercase(c) == 'n') || return false
+    return true
+end
+
+for w in (32,64,128)
+    BID = symbol(string("Dec",w))
+    T = eval(BID)
+    Ti = eval(symbol(string("UInt",w)))
+
+    @eval function Base.parse(::Type{$BID}, s::AbstractString)
+        x = ccall(($(bidsym(w,"from_string")), libbid), $BID, (Ptr{UInt8},), s)
+        if isnan(x) && !isnanstr(s)
+            throw(ArgumentError("invalid number format $s"))
         end
+        return x
+    end
 
+    @eval begin
         function Base.show(io::IO, x::$BID)
             ccall(($(bidsym(w,"to_string")), libbid), Void, (Ptr{UInt8}, $BID), _buffer, x)
             write(io, pointer(_buffer), ccall(:strlen, Csize_t, (Ptr{UInt8},), _buffer))
@@ -48,6 +74,16 @@ for w in (32,64,128)
         Base.muladd(x::$BID, y::$BID, z::$BID) = fma(x,y,z) # faster than x+y*z
         Base.gamma(x::$BID) = ccall(($(bidsym(w,"tgamma")), libbid), $BID, ($BID,), x)
         Base.$(:-)(x::$BID) = ccall(($(bidsym(w,"negate")), libbid), $BID, ($BID,), x)
+
+        Base.one(::Union(Type{$BID},$BID)) = $(parse(T, "1"))
+        Base.zero(::Union(Type{$BID},$BID)) = $(parse(T, "0"))
+
+        Base.signbit(x::$BID) = $(zero(Ti)) != $(Ti(1) << (Ti(w - 1))) & reinterpret($Ti, x)
+        Base.sign(x::$BID) = ifelse(signbit(x), $(parse(T, "-1")), $(parse(T, "1")))
+
+        Base.nextfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128), x, pinf128)
+        Base.prevfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128), x, minf128)
+        Base.eps(x::$BID) = ifelse(isfinite(x), nextfloat(x) - x, $(parse(T, "NaN")))
     end
 
     for (f,c) in ((:isnan,"isNaN"), (:isinf,"isInf"), (:isfinite,"isFinite"), (:issubnormal,"isSubnormal"))
@@ -74,19 +110,11 @@ for w in (32,64,128)
         end
     end
 
-    @eval begin
-        const $(symbol(string("one",w))) = parse($BID, "1")
-        const $(symbol(string("zero",w))) = parse($BID, "0")
-        Base.one(::Union(Type{$BID},$BID)) = $(symbol(string("one",w)))
-        Base.zero(::Union(Type{$BID},$BID)) = $(symbol(string("zero",w)))
-    end
-
     for c in (:π, :e, :γ, :catalan, :φ)
         @eval begin
-            const $(symbol(string(c,w))) = parse($BID, with_bigfloat_precision(256) do
-                                                           string(BigFloat($c))
-                                                       end)
-            Base.convert(::Type{$BID}, ::MathConst{$(QuoteNode(c))}) = $(symbol(string(c,w)))
+            Base.convert(::Type{$BID}, ::MathConst{$(QuoteNode(c))}) = $(parse(T, with_bigfloat_precision(256) do
+                                                                                      string(BigFloat(eval(c)))
+                                                                                  end))
             promote_rule(::Type{$BID}, ::Type{MathConst}) = $BID
         end
     end
@@ -105,12 +133,24 @@ for w in (32,64,128)
         end
     end
 
+    @eval Base.bswap(x::$BID) = box($BID, bswap_int(unbox($BID, x)))
+
     @eval promote_rule{T<:Union(Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Int128,UInt128)}(::Type{$BID}, ::Type{T}) = $BID
 end # widths w
+
+# used for next/prevfloat:
+const pinf128 = parse(Dec128, "+Inf")
+const minf128 = parse(Dec128, "-Inf")
+
+for T in (Dec32,Dec64,Dec128)
+    @eval Base.eps(::Type{$T}) = $(eps(one(T)))
+end
 
 macro d_str(s, flags...) parse(Dec64, s) end
 macro d32_str(s, flags...) parse(Dec32, s) end
 macro d64_str(s, flags...) parse(Dec64, s) end
 macro d128_str(s, flags...) parse(Dec128, s) end
+
+
 
 end # module
