@@ -191,11 +191,10 @@ for T in (Dec32,Dec64,Dec128)
     end
 end
 
-Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Union(Int8,UInt8,Int16,UInt16)) = convert(F, @compat Int32(x))
-Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Float16) = convert(F, @compat Float32(x))
+Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Union(Int8,UInt8,Int16,UInt16)) = F(Int32(x))
+Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Float16) = F(Float32(x))
 promote_rule{F<:DecimalFloatingPoint}(::Type{F}, ::Type{Float16}) = F
 promote_rule{F<:DecimalFloatingPoint,T<:Union(Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64)}(::Type{F}, ::Type{T}) = F
-
 
 macro d_str(s, flags...) parse(Dec64, s) end
 macro d32_str(s, flags...) parse(Dec32, s) end
