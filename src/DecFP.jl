@@ -10,6 +10,17 @@ const _buffer = Array(UInt8, 1024)
 import Base.promote_rule
 import Core.Intrinsics: box, unbox, bswap_int
 
+if VERSION < v"0.4.0-dev+2823"
+    import Compat.fma
+else
+    import Base.fma
+end
+if VERSION < v"0.4.0-dev+2861"
+    import Compat.muladd
+else
+    import Base.muladd
+end
+
 # global pointers and dicts must be initialized at runtime (via __init__)
 function __init__()
     global const rounding = cglobal((:__bid_IDEC_glbround, libbid), Cuint) # rounding mode
@@ -18,7 +29,7 @@ function __init__()
 
     # rounding modes, from bid_functions.h
     global const rounding_c2j = [RoundNearest, RoundDown, RoundUp, RoundToZero, RoundFromZero]
-    global const rounding_j2c = [ rounding_c2j[i]=>Cuint(i-1) for i in 1:length(rounding_c2j) ]
+    global const rounding_j2c = [ rounding_c2j[i]=>convert(Cuint,i-1) for i in 1:length(rounding_c2j) ]
 end
 
 # status flags from bid_functions.h:
@@ -35,10 +46,9 @@ abstract DecimalFloatingPoint <: FloatingPoint
 Base.get_rounding{T<:DecimalFloatingPoint}(::Type{T}) = rounding_c2j[unsafe_load(rounding)+1]
 Base.set_rounding{T<:DecimalFloatingPoint}(::Type{T}, r::RoundingMode) = unsafe_store!(rounding, rounding_j2c[r])
 
-for w in (32,64,128)
-    BID = symbol(string("Dec",w))
-    @eval bitstype $w $BID <: DecimalFloatingPoint
-end
+bitstype 32 Dec32 <: DecimalFloatingPoint
+bitstype 64 Dec64 <: DecimalFloatingPoint
+bitstype 128 Dec128 <: DecimalFloatingPoint
 
 # quickly check whether s begins with "±nan"
 function isnanstr(s::AbstractString)
@@ -60,10 +70,14 @@ function isnanstr(s::AbstractString)
     return true
 end
 
+# Julia 0.3 doesn't like @eval Base.$f, so we need to explicitly import (grr):
+import Base: isnan, isinf, isfinite, issubnormal, +, -, *, /, hypot, atan2, ^, copysign, exp,log,sin,cos,tan,asin,acos,atan,sinh,cosh,tanh,asinh,acosh,atanh,log1p,expm1,log10,log2,exp2,exp10,erf,erfc,lgamma,sqrt,cbrt,abs, gamma,round, ==, <, <=, >, >=
+
 for w in (32,64,128)
     BID = symbol(string("Dec",w))
     T = eval(BID)
     Ti = eval(symbol(string("UInt",w)))
+    ti = VERSION < v"0.4.0-dev+3732" ? eval(symbol(string("uint",w))) : Ti
 
     # hack: we need an internal parsing function that doesn't check exceptions, since
     # flags isn't defined until __init__ runs.  Similarly for nextfloat/prevfloat
@@ -89,13 +103,13 @@ for w in (32,64,128)
             write(io, pointer(_buffer), ccall(:strlen, Csize_t, (Ptr{UInt8},), _buffer))
         end
 
-        Base.fma(x::$BID, y::$BID, z::$BID) = nox(ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID), x, y, z))
-        Base.muladd(x::$BID, y::$BID, z::$BID) = fma(x,y,z) # faster than x+y*z
+        fma(x::$BID, y::$BID, z::$BID) = nox(ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID), x, y, z))
+        muladd(x::$BID, y::$BID, z::$BID) = fma(x,y,z) # faster than x+y*z
 
         Base.one(::Union(Type{$BID},$BID)) = $(_parse(T, "1"))
         Base.zero(::Union(Type{$BID},$BID)) = $(_parse(T, "0"))
 
-        Base.signbit(x::$BID) = $(zero(Ti)) != $(Ti(1) << (Ti(w - 1))) & reinterpret($Ti, x)
+        Base.signbit(x::$BID) = $(zero(Ti)) != $(ti(1) << (ti(w - 1))) & reinterpret($Ti, x)
         Base.sign(x::$BID) = ifelse(signbit(x), $(_parse(T, "-1")), $(_parse(T, "1")))
 
         Base.nextfloat(x::$BID) = nox(_nextfloat(x))
@@ -104,22 +118,22 @@ for w in (32,64,128)
     end
 
     for (f,c) in ((:isnan,"isNaN"), (:isinf,"isInf"), (:isfinite,"isFinite"), (:issubnormal,"isSubnormal"))
-        @eval Base.$f(x::$BID) = ccall(($(bidsym(w,c)), libbid), Cint, ($BID,), x) != 0
+        @eval $f(x::$BID) = ccall(($(bidsym(w,c)), libbid), Cint, ($BID,), x) != 0
     end
 
     for (f,c) in ((:+,"add"), (:-,"sub"), (:*,"mul"), (:/, "div"), (:hypot,"hypot"), (:atan2,"atan2"), (:^,"pow"), (:copysign,"copySign"))
-        @eval Base.$f(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,$BID), x, y))
+        @eval $f(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,$BID), x, y))
     end
 
     for f in (:exp,:log,:sin,:cos,:tan,:asin,:acos,:atan,:sinh,:cosh,:tanh,:asinh,:acosh,:atanh,:log1p,:expm1,:log10,:log2,:exp2,:exp10,:erf,:erfc,:lgamma,:sqrt,:cbrt,:abs)
-        @eval Base.$f(x::$BID) = xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,), x), INVALID)
+        @eval $f(x::$BID) = xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,), x), INVALID)
     end
     for (f,c) in ((:gamma,"tgamma"), (:-,"negate"), (:round,"nearbyint"))
-        @eval Base.$f(x::$BID) = xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), INVALID)
+        @eval $f(x::$BID) = xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), INVALID)
     end
 
     for (f,c) in ((:(==),"quiet_equal"), (:>,"quiet_greater"), (:<,"quiet_less"), (:(>=), "quiet_greater_equal"), (:(<=), "quiet_less_equal"))
-        @eval Base.$f(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,c)), libbid), Cint, ($BID,$BID), x, y) != 0)
+        @eval $f(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,c)), libbid), Cint, ($BID,$BID), x, y) != 0)
     end
 
     for Tf in (Float32,Float64)
@@ -133,8 +147,8 @@ for w in (32,64,128)
     for c in (:π, :e, :γ, :catalan, :φ)
         @eval begin
             Base.convert(::Type{$BID}, ::MathConst{$(QuoteNode(c))}) = $(_parse(T, with_bigfloat_precision(256) do
-                                                                                      string(BigFloat(eval(c)))
-                                                                                  end))
+                                                                                      string(big(eval(c)))
+                                                                                   end))
             promote_rule(::Type{$BID}, ::Type{MathConst}) = $BID
         end
     end
@@ -195,7 +209,6 @@ Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Union(Int8,UInt8,Int16,UInt
 Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Float16) = convert(F, @compat Float32(x))
 promote_rule{F<:DecimalFloatingPoint}(::Type{F}, ::Type{Float16}) = F
 promote_rule{F<:DecimalFloatingPoint,T<:Union(Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64)}(::Type{F}, ::Type{T}) = F
-
 
 macro d_str(s, flags...) parse(Dec64, s) end
 macro d32_str(s, flags...) parse(Dec32, s) end
