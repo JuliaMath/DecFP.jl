@@ -147,7 +147,7 @@ for T in (Dec32,Dec64,Dec128)
         Base.eps(::Type{$T}) = $(eps(one(T)))
         Base.typemax(::Type{$T}) = $(parse(T, "+inf"))
         Base.typemin(::Type{$T}) = $(parse(T, "-inf"))
-        Base.realmax(::Type{$T}) = $(prevfloat(typemax(T)))
+        Base.realmax(::Type{$T}) = $(prevfloat(parse(T, "+inf")))
         Base.realmin(::Type{$T}) = $(nextfloat(zero(T)))
     end
 end
