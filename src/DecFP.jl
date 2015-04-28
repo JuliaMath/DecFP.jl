@@ -14,11 +14,20 @@ import Core.Intrinsics: box, unbox, bswap_int
 function __init__()
     global const rounding = cglobal((:__bid_IDEC_glbround, libbid), Cuint) # rounding mode
     global const flags = cglobal((:__bid_IDEC_glbflags, libbid), Cuint) # exception status
+    unsafe_store!(flags, 0)
 
     # rounding modes, from bid_functions.h
     global const rounding_c2j = [RoundNearest, RoundDown, RoundUp, RoundToZero, RoundFromZero]
     global const rounding_j2c = [ rounding_c2j[i]=>Cuint(i-1) for i in 1:length(rounding_c2j) ]
 end
+
+# status flags from bid_functions.h:
+const INVALID    = 0x01
+const UNNORMAL   = 0x02
+const DIVBYZERO  = 0x04
+const OVERFLOW   = 0x08
+const UNDERFLOW  = 0x10
+const INEXACT    = 0x20
 
 bidsym(w,s...) = string("__bid", w, "_", s...)
 
@@ -56,34 +65,42 @@ for w in (32,64,128)
     T = eval(BID)
     Ti = eval(symbol(string("UInt",w)))
 
-    @eval function Base.parse(::Type{$BID}, s::AbstractString)
-        x = ccall(($(bidsym(w,"from_string")), libbid), $BID, (Ptr{UInt8},), s)
-        if isnan(x) && !isnanstr(s)
-            throw(ArgumentError("invalid number format $s"))
-        end
-        return x
+    # hack: we need an internal parsing function that doesn't check exceptions, since
+    # flags isn't defined until __init__ runs.  Similarly for nextfloat/prevfloat
+    @eval begin
+        _parse(::Type{$BID}, s::AbstractString) =
+            ccall(($(bidsym(w,"from_string")), libbid), $BID, (Ptr{UInt8},), s)
+        _nextfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128), x, pinf128)
+        _prevfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128), x, minf128)
+        _sub(x::$BID, y::$BID) = ccall(($(bidsym(w,"sub")), libbid), $BID, ($BID,$BID), x, y)
     end
 
     @eval begin
+        function Base.parse(::Type{$BID}, s::AbstractString)
+            x = _parse($BID, s)
+            if isnan(x) && !isnanstr(s)
+                throw(ArgumentError("invalid number format $s"))
+            end
+            return xchk(x, InexactError)
+        end
+
         function Base.show(io::IO, x::$BID)
             ccall(($(bidsym(w,"to_string")), libbid), Void, (Ptr{UInt8}, $BID), _buffer, x)
             write(io, pointer(_buffer), ccall(:strlen, Csize_t, (Ptr{UInt8},), _buffer))
         end
 
-        Base.fma(x::$BID, y::$BID, z::$BID) = ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID), x, y, z)
+        Base.fma(x::$BID, y::$BID, z::$BID) = nox(ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID), x, y, z))
         Base.muladd(x::$BID, y::$BID, z::$BID) = fma(x,y,z) # faster than x+y*z
-        Base.gamma(x::$BID) = ccall(($(bidsym(w,"tgamma")), libbid), $BID, ($BID,), x)
-        Base.$(:-)(x::$BID) = ccall(($(bidsym(w,"negate")), libbid), $BID, ($BID,), x)
 
-        Base.one(::Union(Type{$BID},$BID)) = $(parse(T, "1"))
-        Base.zero(::Union(Type{$BID},$BID)) = $(parse(T, "0"))
+        Base.one(::Union(Type{$BID},$BID)) = $(_parse(T, "1"))
+        Base.zero(::Union(Type{$BID},$BID)) = $(_parse(T, "0"))
 
         Base.signbit(x::$BID) = $(zero(Ti)) != $(Ti(1) << (Ti(w - 1))) & reinterpret($Ti, x)
-        Base.sign(x::$BID) = ifelse(signbit(x), $(parse(T, "-1")), $(parse(T, "1")))
+        Base.sign(x::$BID) = ifelse(signbit(x), $(_parse(T, "-1")), $(_parse(T, "1")))
 
-        Base.nextfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128), x, pinf128)
-        Base.prevfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128), x, minf128)
-        Base.eps(x::$BID) = ifelse(isfinite(x), nextfloat(x) - x, $(parse(T, "NaN")))
+        Base.nextfloat(x::$BID) = nox(_nextfloat(x))
+        Base.prevfloat(x::$BID) = nox(_prevfloat(x))
+        Base.eps(x::$BID) = ifelse(isfinite(x), xchk(nextfloat(x) - x, OVERFLOW), $(_parse(T, "NaN")))
     end
 
     for (f,c) in ((:isnan,"isNaN"), (:isinf,"isInf"), (:isfinite,"isFinite"), (:issubnormal,"isSubnormal"))
@@ -91,28 +108,31 @@ for w in (32,64,128)
     end
 
     for (f,c) in ((:+,"add"), (:-,"sub"), (:*,"mul"), (:/, "div"), (:hypot,"hypot"), (:atan2,"atan2"), (:mod,"fmod"), (:^,"pow"), (:copysign,"copySign"))
-        @eval Base.$f(x::$BID, y::$BID) = ccall(($(bidsym(w,c)), libbid), $BID, ($BID,$BID), x, y)
+        @eval Base.$f(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,$BID), x, y))
     end
 
     for f in (:exp,:log,:sin,:cos,:tan,:asin,:acos,:atan,:sinh,:cosh,:tanh,:asinh,:acosh,:atanh,:log1p,:expm1,:log10,:log2,:exp2,:exp10,:erf,:erfc,:lgamma,:sqrt,:cbrt,:abs)
-        @eval Base.$f(x::$BID) = ccall(($(bidsym(w,f)), libbid), $BID, ($BID,), x)
+        @eval Base.$f(x::$BID) = xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,), x), INVALID)
+    end
+    for (f,c) in ((:gamma,"tgamma"), (:-,"negate"), (:round,"nearbyint"))
+        @eval Base.$f(x::$BID) = xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), INVALID)
     end
 
     for (f,c) in ((:(==),"quiet_equal"), (:>,"quiet_greater"), (:<,"quiet_less"), (:(>=), "quiet_greater_equal"), (:(<=), "quiet_less_equal"))
-        @eval Base.$f(x::$BID, y::$BID) = ccall(($(bidsym(w,c)), libbid), Cint, ($BID,$BID), x, y) != 0
+        @eval Base.$f(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,c)), libbid), Cint, ($BID,$BID), x, y) != 0)
     end
 
-    for T in (Float32,Float64)
+    for Tf in (Float32,Float64)
         bT = string("binary",sizeof(T)*8)
         @eval begin
-            Base.convert(::Type{$T}, x::$BID) = ccall(($(bidsym(w,"to_",bT)), libbid), $T, ($BID,), x)
-            Base.convert(::Type{$BID}, x::$T) = ccall(($(string("__",bT,"_to_","bid",w)), libbid), $BID, ($T,), x)
+            Base.convert(::Type{$Tf}, x::$BID) = nox(ccall(($(bidsym(w,"to_",bT)), libbid), $Tf, ($BID,), x))
+            Base.convert(::Type{$BID}, x::$Tf) = nox(ccall(($(string("__",bT,"_to_","bid",w)), libbid), $BID, ($Tf,), x))
         end
     end
 
     for c in (:π, :e, :γ, :catalan, :φ)
         @eval begin
-            Base.convert(::Type{$BID}, ::MathConst{$(QuoteNode(c))}) = $(parse(T, with_bigfloat_precision(256) do
+            Base.convert(::Type{$BID}, ::MathConst{$(QuoteNode(c))}) = $(_parse(T, with_bigfloat_precision(256) do
                                                                                       string(BigFloat(eval(c)))
                                                                                   end))
             promote_rule(::Type{$BID}, ::Type{MathConst}) = $BID
@@ -124,12 +144,32 @@ for w in (32,64,128)
         if w > w′
             @eval promote_rule(::Type{$BID}, ::Type{$BID′}) = $BID
         end
+        if w != w′
+            @eval Base.convert(::Type{$BID}, x::$BID′) = xchk(ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,), x), INEXACT)
+        end
 
         # promote binary*decimal -> decimal, for consistency with other operations above
         # (there doesn't seem to be any clear standard for this)
         if w′ <= 64
             FP′ = symbol(string("Float",w′))
             @eval promote_rule(::Type{$BID}, ::Type{$FP′}) = $(symbol(string("Dec",max(w,w′))))
+            for i′ in ("Int$w′", "UInt$w′")
+                Ti′ = eval(symbol(i′))
+                @eval begin
+                    Base.convert(::Type{$BID}, x::$Ti′) = nox(ccall(($(bidsym(w,"from_",lowercase(i′))), libbid), $BID, ($Ti′,), x))
+                end
+            end
+        end
+    end
+
+    for w′ in (8,16,32,64)
+        for i′ in ("Int$w′", "UInt$w′")
+            Ti′ = eval(symbol(i′))
+            @eval begin
+                Base.floor(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
+                Base.ceil(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xceil")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
+                Base.convert(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError)
+            end
         end
     end
 
@@ -139,22 +179,54 @@ for w in (32,64,128)
 end # widths w
 
 # used for next/prevfloat:
-const pinf128 = parse(Dec128, "+Inf")
-const minf128 = parse(Dec128, "-Inf")
+const pinf128 = _parse(Dec128, "+Inf")
+const minf128 = _parse(Dec128, "-Inf")
 
 for T in (Dec32,Dec64,Dec128)
     @eval begin
-        Base.eps(::Type{$T}) = $(eps(one(T)))
-        Base.typemax(::Type{$T}) = $(parse(T, "+inf"))
-        Base.typemin(::Type{$T}) = $(parse(T, "-inf"))
-        Base.realmax(::Type{$T}) = $(prevfloat(parse(T, "+inf")))
-        Base.realmin(::Type{$T}) = $(nextfloat(zero(T)))
+        Base.eps(::Type{$T}) = $(_sub(_nextfloat(one(T)), one(T)))
+        Base.typemax(::Type{$T}) = $(_parse(T, "+inf"))
+        Base.typemin(::Type{$T}) = $(_parse(T, "-inf"))
+        Base.realmax(::Type{$T}) = $(_prevfloat(_parse(T, "+inf")))
+        Base.realmin(::Type{$T}) = $(_nextfloat(zero(T)))
     end
 end
+
+Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Union(Int8,UInt8,Int16,UInt16)) = convert(F, Int32(x))
+Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Float16) = convert(F, float32(x))
 
 macro d_str(s, flags...) parse(Dec64, s) end
 macro d32_str(s, flags...) parse(Dec32, s) end
 macro d64_str(s, flags...) parse(Dec64, s) end
 macro d128_str(s, flags...) parse(Dec128, s) end
+
+# clear exception flags and return x
+function nox(x)
+    unsafe_store!(flags, 0)
+    return x
+end
+
+# check exception flags in mask & throw, otherwise returning x;
+# always clearing exceptions
+function xchk(x, mask::Integer=0x3f)
+    f = unsafe_load(flags)
+    unsafe_store!(flags, 0)
+    if f & mask != 0
+        f & INEXACT != 0 && throw(InexactError())
+        f & OVERFLOW != 0 && throw(OverflowError())
+        f & DIVBYZERO != 0 && throw(DivideError())
+        f & INVALID != 0 && throw(DomainError())
+        f & UNDERFLOW != 0 && error("underflow")
+        f & UNNORMAL != 0 && error("unnormal")
+    end
+    return x
+end
+
+function xchk{E<:Exception}(x, exc::Type{E}, mask::Integer=0x3f)
+    f = unsafe_load(flags)
+    unsafe_store!(flags, 0)
+    f & mask != 0 && throw(exc())
+    return x
+end
 
 end # module
