@@ -12,19 +12,25 @@ different from packages such as
 [Decimals.jl](https://github.com/tinybike/Decimals.jl), which provide
 *arbitrary-precision* decimal types analogous to `BigFloat`: arbitrary
 precision types are very flexible, but fixed-precision types such
-as those in DecFP are much faster (though still vastly slower than
+as those in DecFP are much faster (though still about 100x slower than
 the hardware binary floating-point types `Float32` and `Float64`).
-
-This is currently a work in progress.
 
 ## Usage
 
 `Dec64` and the other types mentioned above can be constructed from
-other Julia numeric types, e.g. binary floating-point types via
-`Dec64(3.0)`, from strings by `parse(Dec64, "3.2")` or `d64"3.2"` (a
-Julia string macro); similarly for `Dec32` and `Dec128`.  The string
-macro `d"3.2"` constructs `Dec64`.
+other Julia numeric types (binary floating-point or integers) via
+`Dec64(3.5)` or `Dec(3)`, from strings by `parse(Dec64, "3.2")` or
+`d64"3.2"` (a Julia string macro); similarly for `Dec32` and `Dec128`.
+The string macro `d"3.2"` constructs `Dec64`.
 
 Once a decimal float is constructed, most Julia arithemetic and
 special functions should work without modification.  For example,
 `d"3.2" * d"4.5"` produces the `Dec64` result `+1440E-2` (14.4).
+Most basic arithmetic functions are supported, and many special functions
+(`sqrt`, `log`, trigonometric functions, etc.).   Mixed operations
+involving decimal and binary floating-point or integer types are supported
+(the result is promoted to decimal floating-point).
+
+In general, you should be able to use the `DecFP` types in any context
+where you would have used binary floating-point types: arrays, complex
+arithmetic, and linear algebra should all work, for the most part.
