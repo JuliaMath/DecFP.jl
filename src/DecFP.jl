@@ -107,7 +107,7 @@ for w in (32,64,128)
         @eval Base.$f(x::$BID) = ccall(($(bidsym(w,c)), libbid), Cint, ($BID,), x) != 0
     end
 
-    for (f,c) in ((:+,"add"), (:-,"sub"), (:*,"mul"), (:/, "div"), (:hypot,"hypot"), (:atan2,"atan2"), (:mod,"fmod"), (:^,"pow"), (:copysign,"copySign"))
+    for (f,c) in ((:+,"add"), (:-,"sub"), (:*,"mul"), (:/, "div"), (:hypot,"hypot"), (:atan2,"atan2"), (:^,"pow"), (:copysign,"copySign"))
         @eval Base.$f(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,$BID), x, y))
     end
 
@@ -123,7 +123,7 @@ for w in (32,64,128)
     end
 
     for Tf in (Float32,Float64)
-        bT = string("binary",sizeof(T)*8)
+        bT = string("binary",sizeof(Tf)*8)
         @eval begin
             Base.convert(::Type{$Tf}, x::$BID) = nox(ccall(($(bidsym(w,"to_",bT)), libbid), $Tf, ($BID,), x))
             Base.convert(::Type{$BID}, x::$Tf) = nox(ccall(($(string("__",bT,"_to_","bid",w)), libbid), $BID, ($Tf,), x))
@@ -172,10 +172,9 @@ for w in (32,64,128)
             end
         end
     end
-
-    @eval Base.bswap(x::$BID) = box($BID, bswap_int(unbox($BID, x)))
-
-    @eval promote_rule{T<:Union(Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Int128,UInt128)}(::Type{$BID}, ::Type{T}) = $BID
+    
+    @eval Base.bswap(x::$BID) = reinterpret($BID, bswap(reinterpret($Ti, x)))
+    @eval Base.convert(::Type{Float16}, x::$BID) = convert(Float16, convert(Float32, x))
 end # widths w
 
 # used for next/prevfloat:
@@ -192,8 +191,11 @@ for T in (Dec32,Dec64,Dec128)
     end
 end
 
-Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Union(Int8,UInt8,Int16,UInt16)) = convert(F, Int32(x))
-Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Float16) = convert(F, float32(x))
+Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Union(Int8,UInt8,Int16,UInt16)) = convert(F, @compat Int32(x))
+Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Float16) = convert(F, @compat Float32(x))
+promote_rule{F<:DecimalFloatingPoint}(::Type{F}, ::Type{Float16}) = F
+promote_rule{F<:DecimalFloatingPoint,T<:Union(Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64)}(::Type{F}, ::Type{T}) = F
+
 
 macro d_str(s, flags...) parse(Dec64, s) end
 macro d32_str(s, flags...) parse(Dec32, s) end
