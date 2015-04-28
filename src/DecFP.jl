@@ -101,6 +101,10 @@ for w in (32,64,128)
         Base.nextfloat(x::$BID) = nox(_nextfloat(x))
         Base.prevfloat(x::$BID) = nox(_prevfloat(x))
         Base.eps(x::$BID) = ifelse(isfinite(x), xchk(nextfloat(x) - x, OVERFLOW), $(_parse(T, "NaN")))
+
+        # the meaning of the exponent is different than for binary FP: it is 10^n, not 2^n:
+        # Base.exponent(x::$BID) = nox(ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,), x))
+        # Base.ldexp(x::$BID, n::Integer) = nox(ccall(($(bidsym(w,"ldexp")), libbid), $BID, ($BID,Cint), x, n))
     end
 
     for (f,c) in ((:isnan,"isNaN"), (:isinf,"isInf"), (:isfinite,"isFinite"), (:issubnormal,"isSubnormal"))
@@ -176,6 +180,21 @@ for w in (32,64,128)
     @eval Base.bswap(x::$BID) = reinterpret($BID, bswap(reinterpret($Ti, x)))
     @eval Base.convert(::Type{Float16}, x::$BID) = convert(Float16, convert(Float32, x))
 end # widths w
+
+# the complex-sqrt function in base doesn't work for use, because it requires base-2 ldexp
+function Base.sqrt{T<:DecimalFloatingPoint}(z::Complex{T})
+    x, y = reim(z)
+    x==y==0 && return Complex(zero(x),y)
+    ρ = sqrt((abs(x) + hypot(x,y)) * 0.5)
+    ξ = ρ
+    η = y
+    if isfinite(η) η=(η/ρ)/2 end
+    if x<0
+        ξ = abs(η)
+        η = copysign(ρ,y)
+    end
+    Complex(ξ,η)
+end
 
 # used for next/prevfloat:
 const pinf128 = _parse(Dec128, "+Inf")

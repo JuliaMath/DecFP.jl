@@ -81,6 +81,10 @@ for T in (Dec32, Dec64, Dec128)
     @test_throws DomainError asin(xd)
     @test_throws DomainError sqrt(yd)
     @test_throws DomainError acosh(zd)
+
+    # @test ldexp(parse(T, "1"), 3) == 1000
+    # @test exponent(parse(T, "1000")) == 3
+    @test_approx_eq sqrt(complex(yd)) sqrt(complex(y))
 end
 
 @test eps(Dec32) == parse(Dec32, "1e-6")
