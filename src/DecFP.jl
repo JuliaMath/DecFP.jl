@@ -143,14 +143,18 @@ const pinf128 = parse(Dec128, "+Inf")
 const minf128 = parse(Dec128, "-Inf")
 
 for T in (Dec32,Dec64,Dec128)
-    @eval Base.eps(::Type{$T}) = $(eps(one(T)))
+    @eval begin
+        Base.eps(::Type{$T}) = $(eps(one(T)))
+        Base.typemax(::Type{$T}) = $(parse(T, "+inf"))
+        Base.typemin(::Type{$T}) = $(parse(T, "-inf"))
+        Base.realmax(::Type{$T}) = $(prevfloat(typemax(T)))
+        Base.realmin(::Type{$T}) = $(nextfloat(zero(T)))
+    end
 end
 
 macro d_str(s, flags...) parse(Dec64, s) end
 macro d32_str(s, flags...) parse(Dec32, s) end
 macro d64_str(s, flags...) parse(Dec64, s) end
 macro d128_str(s, flags...) parse(Dec128, s) end
-
-
 
 end # module
