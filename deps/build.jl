@@ -25,7 +25,7 @@ if !isfile(tagfile) || !isfile(target) || readchomp(tagfile) != "$vers $WORD_SIZ
             open("makefile.shared", "w") do f
                 println(f, "include makefile\n\n../../$target: \$(ALL_BID_OBJS)\n\t\$(CC) -shared -o \$@ \$(ALL_BID_OBJS)\n")
             end
-            run(`make -f makefile.shared CC=gcc CFLAGS_OPT=-O2 CFLAGS_CC=-fPIC CALL_BY_REF=0 GLOBAL_RND=1 GLOBAL_FLAGS=1 UNCHANGED_BINARY_FLAGS=1 ../../$target`)
+            run(`make -f makefile.shared CC=gcc CFLAGS_OPT="-O2 -fPIC" CALL_BY_REF=0 GLOBAL_RND=1 GLOBAL_FLAGS=1 UNCHANGED_BINARY_FLAGS=1 ../../$target`)
         end
     end
     open(tagfile, "w") do f
