@@ -7,10 +7,12 @@ tagfile = "installed_vers"
 target = "libbid$WORD_SIZE.$(Libdl.dlext)"
 if !isfile(tagfile) || !isfile(target) || readchomp(tagfile) != "$vers $WORD_SIZE"
     if OS_NAME == :Windows
-        error("no binary DLL available yet for Windows")
-#        run(download_cmd("http://ab-initio.mit.edu/dfp/libbid$WORD_SIZE-$vers.dll", target))
-#    elseif OS_NAME == :Darwin
-#        run(download_cmd("http://ab-initio.mit.edu/dfp/libbid$WORD_SIZE-$vers.dylib", target))
+        # binary for Windows was cross-compiled with mingw using:
+        # 32-bit: CC_NAME_INDEX=3 CC_INDEX=3 _HOST_OS=Windows_NT _HOST_ARCH=x86 _NUM_CPUS=1 CC=i686-w64-mingw32-gcc CFLAGS_OPT=-O2 CALL_BY_REF=0 GLOBAL_RND=1 GLOBAL_FLAGS=1 UNCHANGED_BINARY_FLAGS=1
+        # 64-bit: CC_NAME_INDEX=3 CC_INDEX=3 _HOST_OS=Windows_NT _HOST_ARCH=x86_64 _NUM_CPUS=1 CC=x86_64-w64-mingw32-gcc CFLAGS_OPT=-O2 CALL_BY_REF=0 GLOBAL_RND=1 GLOBAL_FLAGS=1 UNCHANGED_BINARY_FLAGS=1
+        run(download_cmd("http://ab-initio.mit.edu/decfp/libbid$WORD_SIZE-$vers.dll", target))
+    elseif OS_NAME == :Darwin
+        run(download_cmd("http://ab-initio.mit.edu/decfp/libbid$WORD_SIZE-$vers.dylib", target))
     else
         tarball = "IntelRDFPMathLib$vers.tar.gz"
         srcdir = "IntelRDFPMathLib$vers/LIBRARY"
