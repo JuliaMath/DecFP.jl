@@ -3,15 +3,33 @@ using Base.Test
 
 @test unsafe_load(DecFP.flags) == 0
 
-@test d"3.2" * d"4.5" == d"14.4"
-@test d32"3.2" * d32"4.5" == d32"14.4"
-@test d64"3.2" * d64"4.5" == d64"14.4"
-@test d128"3.2" * d128"4.5" == d128"14.4"
-
 import DecFP.isnanstr
 @test isnanstr("nan") && isnanstr("  +NAN") && isnanstr("-NaN") && !isnanstr("nano")
 
 for T in (Dec32, Dec64, Dec128)
+    println("TESTING $T ...")
+
+    if T == Dec32
+        @test d32"3.2" * d32"4.5" == d32"14.4"
+        @test eps(Dec32) == parse(Dec32, "1e-6")
+        @test realmax(Dec32) == parse(Dec32, "+9999999E+90")
+        @test realmin(Dec32) == parse(Dec32, "+1E-101")
+        @test bswap(Dec32(1.5)) == reinterpret(Dec32, bswap(reinterpret(UInt32, Dec32(1.5))))
+    elseif T == Dec64
+        @test d"3.2" * d"4.5" == d"14.4"
+        @test d64"3.2" * d64"4.5" == d64"14.4"
+        @test eps(Dec64) == parse(Dec64, "1e-15")
+        @test realmax(Dec64) == parse(Dec64, "+9999999999999999E+369")
+        @test realmin(Dec64) == parse(Dec64, "+1E-398")
+        @test bswap(Dec64(1.5)) == reinterpret(Dec64, bswap(reinterpret(UInt64, Dec64(1.5))))
+    else
+        @test d128"3.2" * d128"4.5" == d128"14.4"
+        @test eps(Dec128) == parse(Dec128, "1e-33")
+        @test realmax(Dec128) == parse(Dec128, "+9999999999999999999999999999999999E+6111")
+        @test realmin(Dec128) == parse(Dec128, "+1E-6176")
+        @test bswap(Dec128(1.5)) == reinterpret(Dec128, bswap(reinterpret(UInt128, Dec128(1.5))))
+    end
+
     @test parse(T, "1.5")::T == 1.5
     @test isnan(parse(T, "NaN")::T) && isnan(T(NaN))
     @test isinf(parse(T, "inf")::T) && !isfinite(parse(T, "inf")::T)
@@ -86,19 +104,5 @@ for T in (Dec32, Dec64, Dec128)
     # @test exponent(parse(T, "1000")) == 3
     @test_approx_eq sqrt(complex(yd)) sqrt(complex(y))
 end
-
-@test eps(Dec32) == parse(Dec32, "1e-6")
-@test eps(Dec64) == parse(Dec64, "1e-15")
-@test eps(Dec128) == parse(Dec128, "1e-33")
-@test realmax(Dec32) == parse(Dec32, "+9999999E+90")
-@test realmin(Dec32) == parse(Dec32, "+1E-101")
-@test realmax(Dec64) == parse(Dec64, "+9999999999999999E+369")
-@test realmin(Dec64) == parse(Dec64, "+1E-398")
-@test realmax(Dec128) == parse(Dec128, "+9999999999999999999999999999999999E+6111")
-@test realmin(Dec128) == parse(Dec128, "+1E-6176")
-
-@test bswap(Dec32(1.5)) == reinterpret(Dec32, bswap(reinterpret(UInt32, Dec32(1.5))))
-@test bswap(Dec64(1.5)) == reinterpret(Dec64, bswap(reinterpret(UInt64, Dec64(1.5))))
-@test bswap(Dec128(1.5)) == reinterpret(Dec128, bswap(reinterpret(UInt128, Dec128(1.5))))
 
 @test unsafe_load(DecFP.flags) == 0
