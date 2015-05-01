@@ -215,6 +215,10 @@ Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Float16) = F(Float32(x))
 promote_rule{F<:DecimalFloatingPoint}(::Type{F}, ::Type{Float16}) = F
 promote_rule{F<:DecimalFloatingPoint,T<:Union(Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64)}(::Type{F}, ::Type{T}) = F
 
+# so that mathconsts get promoted to Dec32, not Dec64, like Float32
+promote_rule{s,F<:DecimalFloatingPoint}(::Type{MathConst{s}}, ::Type{F}) = F
+promote_rule{s,F<:DecimalFloatingPoint}(::Type{MathConst{s}}, T::Type{Complex{F}}) = T
+
 macro d_str(s, flags...) parse(Dec64, s) end
 macro d32_str(s, flags...) parse(Dec32, s) end
 macro d64_str(s, flags...) parse(Dec64, s) end

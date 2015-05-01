@@ -103,6 +103,9 @@ for T in (Dec32, Dec64, Dec128)
     # @test ldexp(parse(T, "1"), 3) == 1000
     # @test exponent(parse(T, "1000")) == 3
     @test_approx_eq sqrt(complex(yd)) sqrt(complex(y))
+
+    @test typeof(xd * pi) == T
+    @test typeof((xd+yd*im)*pi) == Complex{T}
 end
 
 @test unsafe_load(DecFP.flags) == 0
