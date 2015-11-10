@@ -31,7 +31,7 @@ const INEXACT    = 0x20
 
 bidsym(w,s...) = string("__bid", w, "_", s...)
 
-abstract DecimalFloatingPoint <: FloatingPoint
+abstract DecimalFloatingPoint <: AbstractFloat
 Base.get_rounding{T<:DecimalFloatingPoint}(::Type{T}) = rounding_c2j[unsafe_load(rounding)+1]
 Base.set_rounding{T<:DecimalFloatingPoint}(::Type{T}, r::RoundingMode) = unsafe_store!(rounding, rounding_j2c[r])
 
@@ -92,8 +92,8 @@ for w in (32,64,128)
         Base.fma(x::$BID, y::$BID, z::$BID) = nox(ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID), x, y, z))
         Base.muladd(x::$BID, y::$BID, z::$BID) = fma(x,y,z) # faster than x+y*z
 
-        Base.one(::Union(Type{$BID},$BID)) = $(_parse(T, "1"))
-        Base.zero(::Union(Type{$BID},$BID)) = $(_parse(T, "0"))
+        Base.one(::Union{Type{$BID},$BID}) = $(_parse(T, "1"))
+        Base.zero(::Union{Type{$BID},$BID}) = $(_parse(T, "0"))
 
         Base.signbit(x::$BID) = $(zero(Ti)) != $(Ti(1) << (Ti(w - 1))) & reinterpret($Ti, x)
         Base.sign(x::$BID) = ifelse(signbit(x), $(_parse(T, "-1")), $(_parse(T, "1")))
@@ -136,10 +136,10 @@ for w in (32,64,128)
 
     for c in (:π, :e, :γ, :catalan, :φ)
         @eval begin
-            Base.convert(::Type{$BID}, ::MathConst{$(QuoteNode(c))}) = $(_parse(T, with_bigfloat_precision(256) do
+            Base.convert(::Type{$BID}, ::Irrational{$(QuoteNode(c))}) = $(_parse(T, with_bigfloat_precision(256) do
                                                                                       string(BigFloat(eval(c)))
                                                                                   end))
-            promote_rule(::Type{$BID}, ::Type{MathConst}) = $BID
+            promote_rule(::Type{$BID}, ::Type{Irrational}) = $BID
         end
     end
 
@@ -210,14 +210,14 @@ for T in (Dec32,Dec64,Dec128)
     end
 end
 
-Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Union(Int8,UInt8,Int16,UInt16)) = F(Int32(x))
+Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Union{Int8,UInt8,Int16,UInt16}) = F(Int32(x))
 Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Float16) = F(Float32(x))
 promote_rule{F<:DecimalFloatingPoint}(::Type{F}, ::Type{Float16}) = F
-promote_rule{F<:DecimalFloatingPoint,T<:Union(Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64)}(::Type{F}, ::Type{T}) = F
+promote_rule{F<:DecimalFloatingPoint,T<:Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64}}(::Type{F}, ::Type{T}) = F
 
 # so that mathconsts get promoted to Dec32, not Dec64, like Float32
-promote_rule{s,F<:DecimalFloatingPoint}(::Type{MathConst{s}}, ::Type{F}) = F
-promote_rule{s,F<:DecimalFloatingPoint}(::Type{MathConst{s}}, T::Type{Complex{F}}) = T
+promote_rule{s,F<:DecimalFloatingPoint}(::Type{Irrational{s}}, ::Type{F}) = F
+promote_rule{s,F<:DecimalFloatingPoint}(::Type{Irrational{s}}, T::Type{Complex{F}}) = T
 
 macro d_str(s, flags...) parse(Dec64, s) end
 macro d32_str(s, flags...) parse(Dec32, s) end
