@@ -136,12 +136,13 @@ for w in (32,64,128)
 
     for c in (:π, :e, :γ, :catalan, :φ)
         @eval begin
-            Base.convert(::Type{$BID}, ::Irrational{$(QuoteNode(c))}) = $(_parse(T, with_bigfloat_precision(256) do
+            Base.convert(::Type{$BID}, ::Irrational{$(QuoteNode(c))}) = $(_parse(T, @compat setprecision(256) do
                                                                                       string(BigFloat(eval(c)))
                                                                                   end))
-            promote_rule(::Type{$BID}, ::Type{Irrational}) = $BID
         end
     end
+
+    @eval promote_rule(::Type{$BID}, ::Type{Irrational}) = $BID
 
     for w′ in (32,64,128)
         BID′ = symbol(string("Dec",w′))
@@ -176,7 +177,7 @@ for w in (32,64,128)
             end
         end
     end
-    
+
     @eval Base.bswap(x::$BID) = reinterpret($BID, bswap(reinterpret($Ti, x)))
     @eval Base.convert(::Type{Float16}, x::$BID) = convert(Float16, convert(Float32, x))
 end # widths w
