@@ -3,7 +3,7 @@ export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str
 
 using Compat
 
-const libbid = joinpath(dirname(@__FILE__), "..", "deps", "libbid$WORD_SIZE")
+const libbid = joinpath(dirname(@__FILE__), "..", "deps", "libbid$Sys.WORD_SIZE")
 
 const _buffer = Array(UInt8, 1024)
 
