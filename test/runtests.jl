@@ -92,7 +92,7 @@ for T in (Dec32, Dec64, Dec128)
         end
     end
     
-    TI = eval(symbol(string("UInt", sizeof(T)*8)))
+    TI = eval(Symbol(string("UInt", sizeof(T)*8)))
     @test bswap(xd) == reinterpret(T, bswap(reinterpret(TI, xd)))
 
     @test_throws InexactError parse(T, "1e10000")
