@@ -3,7 +3,7 @@ export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str
 
 using Compat
 
-const libbid = joinpath(dirname(@__FILE__), "..", "deps", "libbid$WORD_SIZE")
+const libbid = joinpath(dirname(@__FILE__), "..", "deps", "libbid$(Sys.WORD_SIZE)")
 
 const _buffer = Array(UInt8, 1024)
 
@@ -36,7 +36,7 @@ Base.get_rounding{T<:DecimalFloatingPoint}(::Type{T}) = rounding_c2j[unsafe_load
 Base.set_rounding{T<:DecimalFloatingPoint}(::Type{T}, r::RoundingMode) = unsafe_store!(rounding, rounding_j2c[r])
 
 for w in (32,64,128)
-    BID = symbol(string("Dec",w))
+    BID = Symbol(string("Dec",w))
     @eval bitstype $w $BID <: DecimalFloatingPoint
 end
 
@@ -61,9 +61,9 @@ function isnanstr(s::AbstractString)
 end
 
 for w in (32,64,128)
-    BID = symbol(string("Dec",w))
+    BID = Symbol(string("Dec",w))
     T = eval(BID)
-    Ti = eval(symbol(string("UInt",w)))
+    Ti = eval(Symbol(string("UInt",w)))
 
     # hack: we need an internal parsing function that doesn't check exceptions, since
     # flags isn't defined until __init__ runs.  Similarly for nextfloat/prevfloat
@@ -145,7 +145,7 @@ for w in (32,64,128)
     @eval promote_rule(::Type{$BID}, ::Type{Irrational}) = $BID
 
     for w′ in (32,64,128)
-        BID′ = symbol(string("Dec",w′))
+        BID′ = Symbol(string("Dec",w′))
         if w > w′
             @eval promote_rule(::Type{$BID}, ::Type{$BID′}) = $BID
         end
@@ -156,10 +156,10 @@ for w in (32,64,128)
         # promote binary*decimal -> decimal, for consistency with other operations above
         # (there doesn't seem to be any clear standard for this)
         if w′ <= 64
-            FP′ = symbol(string("Float",w′))
-            @eval promote_rule(::Type{$BID}, ::Type{$FP′}) = $(symbol(string("Dec",max(w,w′))))
+            FP′ = Symbol(string("Float",w′))
+            @eval promote_rule(::Type{$BID}, ::Type{$FP′}) = $(Symbol(string("Dec",max(w,w′))))
             for i′ in ("Int$w′", "UInt$w′")
-                Ti′ = eval(symbol(i′))
+                Ti′ = eval(Symbol(i′))
                 @eval begin
                     Base.convert(::Type{$BID}, x::$Ti′) = nox(ccall(($(bidsym(w,"from_",lowercase(i′))), libbid), $BID, ($Ti′,), x))
                 end
@@ -169,7 +169,7 @@ for w in (32,64,128)
 
     for w′ in (8,16,32,64)
         for i′ in ("Int$w′", "UInt$w′")
-            Ti′ = eval(symbol(i′))
+            Ti′ = eval(Symbol(i′))
             @eval begin
                 Base.floor(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
                 Base.ceil(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xceil")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)

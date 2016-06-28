@@ -4,15 +4,15 @@ using Compat
 vers = "20U1"
 
 tagfile = "installed_vers"
-target = "libbid$WORD_SIZE.$(Libdl.dlext)"
-if !isfile(tagfile) || !isfile(target) || readchomp(tagfile) != "$vers $WORD_SIZE"
+target = "libbid$(Sys.WORD_SIZE).$(Libdl.dlext)"
+if !isfile(tagfile) || !isfile(target) || readchomp(tagfile) != "$vers $(Sys.WORD_SIZE)"
     if OS_NAME == :Windows
         # binary for Windows was cross-compiled with mingw using:
         # 32-bit: CC_NAME_INDEX=3 CC_INDEX=3 _HOST_OS=Windows_NT _HOST_ARCH=x86 _NUM_CPUS=1 CC=i686-w64-mingw32-gcc CFLAGS_OPT="-O2 -DBID_THREAD=" CALL_BY_REF=0 GLOBAL_RND=1 GLOBAL_FLAGS=1 UNCHANGED_BINARY_FLAGS=1
         # 64-bit: CC_NAME_INDEX=3 CC_INDEX=3 _HOST_OS=Windows_NT _HOST_ARCH=x86_64 _NUM_CPUS=1 CC=x86_64-w64-mingw32-gcc CFLAGS_OPT="-O2 -DBID_THREAD=" CALL_BY_REF=0 GLOBAL_RND=1 GLOBAL_FLAGS=1 UNCHANGED_BINARY_FLAGS=1
-        run(download_cmd("http://ab-initio.mit.edu/decfp/libbid$WORD_SIZE-$vers.dll", target))
+        run(download_cmd("http://ab-initio.mit.edu/decfp/libbid$(Sys.WORD_SIZE)-$vers.dll", target))
     elseif OS_NAME == :Darwin
-        run(download_cmd("http://ab-initio.mit.edu/decfp/libbid$WORD_SIZE-$vers.dylib", target))
+        run(download_cmd("http://ab-initio.mit.edu/decfp/libbid$(Sys.WORD_SIZE)-$vers.dylib", target))
     else
         tarball = "IntelRDFPMathLib$vers.tar.gz"
         srcdir = "IntelRDFPMathLib$vers/LIBRARY"
@@ -29,6 +29,6 @@ if !isfile(tagfile) || !isfile(target) || readchomp(tagfile) != "$vers $WORD_SIZ
         end
     end
     open(tagfile, "w") do f
-        println(f, "$vers $WORD_SIZE")
+        println(f, "$vers $(Sys.WORD_SIZE)")
     end
 end
