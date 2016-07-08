@@ -18,7 +18,7 @@ function __init__()
 
     # rounding modes, from bid_functions.h
     global const rounding_c2j = [RoundNearest, RoundDown, RoundUp, RoundToZero, RoundFromZero]
-    global const rounding_j2c = [ rounding_c2j[i]=>Cuint(i-1) for i in 1:length(rounding_c2j) ]
+    global const rounding_j2c = Dict{Any, Any}([(rounding_c2j[i], Cuint(i-1)) for i in 1:length(rounding_c2j)])
 end
 
 # status flags from bid_functions.h:
