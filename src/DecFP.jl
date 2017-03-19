@@ -35,10 +35,9 @@ bidsym(w,s...) = string("__bid", w, "_", s...)
 Base.rounding{T<:DecimalFloatingPoint}(::Type{T}) = rounding_c2j[unsafe_load(rounding)+1]
 Base.setrounding{T<:DecimalFloatingPoint}(::Type{T}, r::RoundingMode) = unsafe_store!(rounding, rounding_j2c[r])
 
-for w in (32,64,128)
-    BID = Symbol(string("Dec",w))
-    @eval @compat primitive type $BID <: DecimalFloatingPoint $w end
-end
+@compat primitive type Dec32 <: DecimalFloatingPoint 32 end
+@compat primitive type Dec64 <: DecimalFloatingPoint 32 end
+@compat primitive type Dec128 <: DecimalFloatingPoint 32 end
 
 # quickly check whether s begins with "±nan"
 function isnanstr(s::AbstractString)
