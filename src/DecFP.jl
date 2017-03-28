@@ -39,10 +39,9 @@ else
     Base.setrounding{T<:DecimalFloatingPoint}(::Type{T}, r::RoundingMode) = unsafe_store!(rounding, rounding_j2c[r])
 end
 
-for w in (32,64,128)
-    BID = Symbol(string("Dec",w))
-    @eval @compat primitive type $BID <: DecimalFloatingPoint $w end
-end
+@eval @compat primitive type Dec32 <: DecimalFloatingPoint 32 end
+@eval @compat primitive type Dec64 <: DecimalFloatingPoint 64 end
+@eval @compat primitive type Dec128 <: DecimalFloatingPoint 128 end
 
 # quickly check whether s begins with "±nan"
 function isnanstr(s::AbstractString)
