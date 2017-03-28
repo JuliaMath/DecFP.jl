@@ -5,10 +5,9 @@ using Compat
 
 const libbid = joinpath(dirname(@__FILE__), "..", "deps", "libbid$(Sys.WORD_SIZE)")
 
-const _buffer = Array(UInt8, 1024)
+const _buffer = Array{UInt8}(1024)
 
 import Base.promote_rule
-import Core.Intrinsics: box, unbox, bswap_int
 
 # global pointers and dicts must be initialized at runtime (via __init__)
 function __init__()
@@ -31,13 +30,18 @@ const INEXACT    = 0x20
 
 bidsym(w,s...) = string("__bid", w, "_", s...)
 
-abstract DecimalFloatingPoint <: AbstractFloat
-Base.get_rounding{T<:DecimalFloatingPoint}(::Type{T}) = rounding_c2j[unsafe_load(rounding)+1]
-Base.set_rounding{T<:DecimalFloatingPoint}(::Type{T}, r::RoundingMode) = unsafe_store!(rounding, rounding_j2c[r])
+@compat abstract type DecimalFloatingPoint <: AbstractFloat end
+if VERSION < v"0.5"
+    Base.get_rounding{T<:DecimalFloatingPoint}(::Type{T}) = rounding_c2j[unsafe_load(rounding)+1]
+    Base.set_rounding{T<:DecimalFloatingPoint}(::Type{T}, r::RoundingMode) = unsafe_store!(rounding, rounding_j2c[r])
+else
+    Base.rounding{T<:DecimalFloatingPoint}(::Type{T}) = rounding_c2j[unsafe_load(rounding)+1]
+    Base.setrounding{T<:DecimalFloatingPoint}(::Type{T}, r::RoundingMode) = unsafe_store!(rounding, rounding_j2c[r])
+end
 
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
-    @eval bitstype $w $BID <: DecimalFloatingPoint
+    @eval @compat primitive type $BID <: DecimalFloatingPoint $w end
 end
 
 # quickly check whether s begins with "±nan"
@@ -115,9 +119,10 @@ for w in (32,64,128)
         @eval Base.$f(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,$BID), x, y))
     end
 
-    for f in (:exp,:log,:sin,:cos,:tan,:asin,:acos,:atan,:sinh,:cosh,:tanh,:asinh,:acosh,:atanh,:log1p,:expm1,:log10,:log2,:exp2,:exp10,:erf,:erfc,:lgamma,:sqrt,:cbrt,:abs)
+    for f in (:exp,:log,:sin,:cos,:tan,:asin,:acos,:atan,:sinh,:cosh,:tanh,:asinh,:acosh,:atanh,:log1p,:expm1,:log10,:log2,:exp2,:exp10,:lgamma,:sqrt,:cbrt,:abs)
         @eval Base.$f(x::$BID) = xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,), x), INVALID)
     end
+
     for (f,c) in ((:gamma,"tgamma"), (:-,"negate"), (:round,"nearbyint"))
         @eval Base.$f(x::$BID) = xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), INVALID)
     end

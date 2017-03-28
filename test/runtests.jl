@@ -1,4 +1,4 @@
-using DecFP
+using DecFP, Compat
 using Base.Test
 
 @test unsafe_load(DecFP.flags) == 0
@@ -58,22 +58,22 @@ for T in (Dec32, Dec64, Dec128)
     for f in (+,-,*,copysign,==,>,>=,<,<=)
         @test f(xd,yd) == f(x,y)
     end
-    
+
     for f in (/,hypot,atan2,^)
-        @test_approx_eq f(xd,yd) f(x,y)
+        @test f(xd,yd) ≈ f(x,y)
         if f != ^
-            @test_approx_eq f(yd,xd) f(y,x)
-            @test_approx_eq f(yd,yd) f(y,y)
+            @test f(yd,xd) ≈ f(y,x)
+            @test f(yd,yd) ≈ f(y,y)
         end
     end
 
-    for f in (exp,log,sin,cos,tan,asin,acos,atan,sinh,cosh,tanh,asinh,acosh,atanh,log1p,expm1,log10,log2,exp2,exp10,erf,erfc,lgamma,sqrt,cbrt)
+    for f in (exp,log,sin,cos,tan,asin,acos,atan,sinh,cosh,tanh,asinh,acosh,atanh,log1p,expm1,log10,log2,exp2,exp10,lgamma,sqrt,cbrt)
         v = f == acosh ? x : z
-        @test_approx_eq f(T(v)) f(v)
+        @test f(T(v)) ≈ f(v)
     end
 
     for c in (π, e, γ, catalan, φ)
-        @test_approx_eq T(c) Float64(c)
+        @test T(c) ≈ Float64(c)
     end
 
     for Tf in (Float64, Float32, Float16)
@@ -91,7 +91,7 @@ for T in (Dec32, Dec64, Dec128)
             @test_throws InexactError convert(Ti, yd)
         end
     end
-    
+
     TI = eval(Symbol(string("UInt", sizeof(T)*8)))
     @test bswap(xd) == reinterpret(T, bswap(reinterpret(TI, xd)))
 
@@ -102,7 +102,7 @@ for T in (Dec32, Dec64, Dec128)
 
     # @test ldexp(parse(T, "1"), 3) == 1000
     # @test exponent(parse(T, "1000")) == 3
-    @test_approx_eq sqrt(complex(yd)) sqrt(complex(y))
+    @test sqrt(complex(yd)) ≈ sqrt(complex(y))
 
     @test typeof(xd * pi) == T
     @test typeof((xd+yd*im)*pi) == Complex{T}
