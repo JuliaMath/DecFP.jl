@@ -36,6 +36,8 @@ for T in (Dec32, Dec64, Dec128)
     @test parse(T,"inf")::T == typemax(T)::T
     @test parse(T,"-inf")::T == typemin(T)::T
 
+    @test parse(T, "0.1")::T == T(1//10)
+
     x,y,z = 1.5, -3.25, 0.0625 # exactly represented in binary
     xd = T(x); yd = T(y); zd = T(z)
 

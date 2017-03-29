@@ -225,6 +225,7 @@ end
 Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Union{Int8,UInt8,Int16,UInt16}) = F(Int32(x))
 Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Integer) = F(Int64(x))
 Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Unsigned) = F(UInt64(x))
+Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Rational) = F(x.num) / F(x.den)
 Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Float16) = F(Float32(x))
 promote_rule{F<:DecimalFloatingPoint}(::Type{F}, ::Type{Float16}) = F
 promote_rule{F<:DecimalFloatingPoint,T<:Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64}}(::Type{F}, ::Type{T}) = F
