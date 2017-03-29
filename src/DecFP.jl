@@ -39,9 +39,15 @@ else
     Base.setrounding{T<:DecimalFloatingPoint}(::Type{T}, r::RoundingMode) = unsafe_store!(rounding, rounding_j2c[r])
 end
 
-@eval @compat primitive type Dec32 <: DecimalFloatingPoint 32 end
-@eval @compat primitive type Dec64 <: DecimalFloatingPoint 64 end
-@eval @compat primitive type Dec128 <: DecimalFloatingPoint 128 end
+for w in (32,64,128)
+    BID = Symbol(string("Dec",w))
+    Ti = Symbol(string("UInt",w))
+    @eval immutable $BID <: DecimalFloatingPoint
+        x::$Ti
+        $BID(x) = convert($BID, x)
+        Base.reinterpret(::Type{$BID}, x::$Ti) = new(x)
+    end
+end
 
 # quickly check whether s begins with "±nan"
 function isnanstr(s::AbstractString)
@@ -65,8 +71,8 @@ end
 
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
-    T = eval(BID)
     Ti = eval(Symbol(string("UInt",w)))
+    T = eval(BID)
 
     # hack: we need an internal parsing function that doesn't check exceptions, since
     # flags isn't defined until __init__ runs.  Similarly for nextfloat/prevfloat
@@ -98,7 +104,7 @@ for w in (32,64,128)
         Base.one(::Union{Type{$BID},$BID}) = $(_parse(T, "1"))
         Base.zero(::Union{Type{$BID},$BID}) = $(_parse(T, "0"))
 
-        Base.signbit(x::$BID) = $(zero(Ti)) != $(Ti(1) << (Ti(w - 1))) & reinterpret($Ti, x)
+        Base.signbit(x::$BID) = $(zero(Ti)) != $(Ti(1) << (Ti(w - 1))) & x.x
         Base.sign(x::$BID) = ifelse(signbit(x), $(_parse(T, "-1")), $(_parse(T, "1")))
 
         Base.nextfloat(x::$BID) = nox(_nextfloat(x))
@@ -182,8 +188,9 @@ for w in (32,64,128)
         end
     end
 
-    @eval Base.bswap(x::$BID) = reinterpret($BID, bswap(reinterpret($Ti, x)))
+    @eval Base.bswap(x::$BID) = reinterpret($BID, bswap(x.x))
     @eval Base.convert(::Type{Float16}, x::$BID) = convert(Float16, convert(Float32, x))
+    @eval Base.reinterpret(::Type{$Ti}, x::$BID) = x.x
 end # widths w
 
 # the complex-sqrt function in base doesn't work for use, because it requires base-2 ldexp
@@ -216,6 +223,8 @@ for T in (Dec32,Dec64,Dec128)
 end
 
 Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Union{Int8,UInt8,Int16,UInt16}) = F(Int32(x))
+Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Integer) = F(Int64(x))
+Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Unsigned) = F(UInt64(x))
 Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Float16) = F(Float32(x))
 promote_rule{F<:DecimalFloatingPoint}(::Type{F}, ::Type{Float16}) = F
 promote_rule{F<:DecimalFloatingPoint,T<:Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64}}(::Type{F}, ::Type{T}) = F
