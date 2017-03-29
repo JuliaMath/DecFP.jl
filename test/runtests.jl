@@ -111,3 +111,6 @@ for T in (Dec32, Dec64, Dec128)
 end
 
 @test unsafe_load(DecFP.flags) == 0
+
+# issue #38
+@test collect(v for i in 1:1, v in zeros(Dec128, 1)) ==  zeros(Dec128, 1, 1)
