@@ -6,7 +6,7 @@ vers = "20U1"
 url="https://bintray.com/artifact/download/julialang/generic/"
 tagfile = "installed_vers"
 target = "libbid$(Sys.WORD_SIZE).$(Libdl.dlext)"
-if !isfile(tagfile) || !isfile(target) || readchomp(tagfile) != "$vers $(Sys.WORD_SIZE)"
+if !isfile(tagfile) || !isfile(target) || readchomp(tagfile) != "$vers:$(Sys.WORD_SIZE)"
     if Compat.KERNEL == :NT
         # binary for Windows was cross-compiled with mingw using:
         # 32-bit: CC_NAME_INDEX=3 CC_INDEX=3 _HOST_OS=Windows_NT _HOST_ARCH=x86 _NUM_CPUS=1 CC=i686-w64-mingw32-gcc CFLAGS_OPT="-O2 -DBID_THREAD= -DBID_MS_FLAGS" CALL_BY_REF=0 GLOBAL_RND=1 GLOBAL_FLAGS=1 UNCHANGED_BINARY_FLAGS=1
@@ -34,6 +34,6 @@ if !isfile(tagfile) || !isfile(target) || readchomp(tagfile) != "$vers $(Sys.WOR
         end
     end
     open(tagfile, "w") do f
-        println(f, "$vers $(Sys.WORD_SIZE)")
+        println(f, "$vers:$(Sys.WORD_SIZE)")
     end
 end
