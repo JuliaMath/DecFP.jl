@@ -3,6 +3,7 @@ using Compat
 
 vers = "20U1"
 
+url="https://bintray.com/artifact/download/julialang/generic/"
 tagfile = "installed_vers"
 target = "libbid$(Sys.WORD_SIZE).$(Libdl.dlext)"
 if !isfile(tagfile) || !isfile(target) || readchomp(tagfile) != "$vers $(Sys.WORD_SIZE)"
@@ -14,14 +15,14 @@ if !isfile(tagfile) || !isfile(target) || readchomp(tagfile) != "$vers $(Sys.WOR
         #   include makefile
         #   libbid.dll: $(ALL_BID_OBJS)
         #           $(CC) -shared -o $@ $(ALL_BID_OBJS)
-        run(download_cmd("http://ab-initio.mit.edu/decfp/libbid$(Sys.WORD_SIZE)-$vers.dll", target))
+        run(download_cmd(url*"libbid$(Sys.WORD_SIZE)-$vers.dll", target))
     elseif Compat.KERNEL == :Darwin
-        run(download_cmd("http://ab-initio.mit.edu/decfp/libbid$(Sys.WORD_SIZE)-$vers.dylib", target))
+        run(download_cmd(url*"libbid$(Sys.WORD_SIZE)-$vers.dylib", target))
     else
         tarball = "IntelRDFPMathLib$vers.tar.gz"
         srcdir = "IntelRDFPMathLib$vers/LIBRARY"
         if !isfile(tarball)
-            run(download_cmd("http://www.netlib.org/misc/intel/$tarball", tarball))
+            run(download_cmd(url*"$tarball", tarball))
         end
         run(unpack_cmd(tarball, ".", ".gz", ".tar"))
         cd(srcdir) do
