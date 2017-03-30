@@ -16,7 +16,7 @@ precision types are very flexible, but fixed-precision types such
 as those in DecFP are much faster (though still about 100x slower than
 the hardware binary floating-point types `Float32` and `Float64`).
 
-The DecFP package currently requires the Julia 0.4 release or later.
+The DecFP package currently requires the Julia 0.5 release or later.
 
 ## Usage
 
