@@ -26,7 +26,7 @@ other Julia numeric types (binary floating-point or integers) via
 `d64"3.2"` (a Julia string macro); similarly for `Dec32` and `Dec128`.
 The string macro `d"3.2"` constructs `Dec64`.
 
-Once a decimal float is constructed, most Julia arithemetic and
+Once a decimal float is constructed, most Julia arithmetic and
 special functions should work without modification.  For example,
 `d"3.2" * d"4.5"` produces the `Dec64` result `+1440E-2` (14.4).
 Most basic arithmetic functions are supported, and many special functions
