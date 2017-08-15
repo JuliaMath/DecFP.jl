@@ -177,10 +177,19 @@ for w in (32,64,128)
         end
     end
 
+    i′ = string("Int", Sys.WORD_SIZE)
+    Ti′ = eval(Symbol(i′))
+    @eval begin
+        Base.trunc(::Type{Integer}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xint")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
+        Base.floor(::Type{Integer}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
+        Base.ceil(::Type{Integer}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xceil")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
+        Base.convert(::Type{Integer}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError)
+    end
     for w′ in (8,16,32,64)
         for i′ in ("Int$w′", "UInt$w′")
             Ti′ = eval(Symbol(i′))
             @eval begin
+                Base.trunc(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xint")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
                 Base.floor(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
                 Base.ceil(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xceil")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
                 Base.convert(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError)
