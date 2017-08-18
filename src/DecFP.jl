@@ -181,6 +181,7 @@ for w in (32,64,128)
         for i′ in ("Int$w′", "UInt$w′")
             Ti′ = eval(Symbol(i′))
             @eval begin
+                Base.trunc(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xint")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
                 Base.floor(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
                 Base.ceil(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xceil")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
                 Base.convert(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError)
@@ -192,6 +193,11 @@ for w in (32,64,128)
     @eval Base.convert(::Type{Float16}, x::$BID) = convert(Float16, convert(Float32, x))
     @eval Base.reinterpret(::Type{$Ti}, x::$BID) = x.x
 end # widths w
+
+Base.trunc(::Type{Integer}, x::DecimalFloatingPoint) = trunc(Int, x)
+Base.floor(::Type{Integer}, x::DecimalFloatingPoint) = floor(Int, x)
+Base.ceil(::Type{Integer}, x::DecimalFloatingPoint) = ceil(Int, x)
+Base.convert(::Type{Integer}, x::DecimalFloatingPoint) = convert(Int, x)
 
 # the complex-sqrt function in base doesn't work for use, because it requires base-2 ldexp
 function Base.sqrt{T<:DecimalFloatingPoint}(z::Complex{T})

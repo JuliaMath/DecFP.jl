@@ -81,15 +81,20 @@ for T in (Dec32, Dec64, Dec128)
     for Tf in (Float64, Float32, Float16)
         @test xd == Tf(x) == T(Tf(x)) == Tf(xd)
     end
-    for Ti in (Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64)
-        @test parse(T, "17") == T(Ti(17)) == Ti(17) == Ti(T(17))
-        @test floor(Ti, T(4.5)) == 4 == ceil(Ti, T(4.5)) - 1
+    for Ti in (Integer,Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64)
+        if Ti != Integer
+            @test parse(T, "17") == T(Ti(17)) == Ti(17) == Ti(T(17))
+        end
+        @test trunc(Ti, T(4.5)) == floor(Ti, T(4.5)) == 4 == ceil(Ti, T(4.5)) - 1
         @test_throws InexactError convert(Ti, xd)
+        @test_throws InexactError trunc(Ti, realmax(T))
         @test_throws InexactError floor(Ti, realmax(T))
         @test_throws InexactError ceil(Ti, realmax(T))
         if Ti <: Signed
             @test parse(T, "-17") == T(Ti(-17)) == Ti(-17) == Ti(T(-17))
-            @test floor(Ti, T(-4.5)) == -5 == ceil(Ti, T(-4.5)) - 1
+        end
+        if Ti <: Signed || Ti === Integer
+            @test floor(Ti, T(-4.5)) == -5 == trunc(Ti, T(-4.5)) - 1 == ceil(Ti, T(-4.5)) - 1
             @test_throws InexactError convert(Ti, yd)
         end
     end
