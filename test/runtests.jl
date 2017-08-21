@@ -85,7 +85,11 @@ for T in (Dec32, Dec64, Dec128)
         if Ti != Integer
             @test parse(T, "17") == T(Ti(17)) == Ti(17) == Ti(T(17))
         end
-        @test trunc(Ti, T(4.5)) == floor(Ti, T(4.5)) == 4 == ceil(Ti, T(4.5)) - 1
+        @test trunc(Ti, T(2.7)) === floor(Ti, T(2.7)) === round(Ti, T(2.7), RoundDown) === round(Ti, T(2.7), RoundToZero) === Ti(2)
+        @test ceil(Ti, T(2.3)) === round(Ti, T(2.3), RoundUp) === round(Ti, T(2.3), RoundFromZero) === Ti(3)
+        @test round(Ti, T(1.5)) === round(Ti, T(2.5)) === round(Ti, T(1.5), RoundNearest) === round(Ti, T(2.5), RoundNearest) === Ti(2)
+        @test round(Ti, T(2.5), RoundNearestTiesAway) === round(Ti, T(3.3), RoundNearestTiesAway) === Ti(3)
+        @test round(Ti, T(2.5), RoundNearestTiesUp) === round(Ti, T(3.3), RoundNearestTiesUp) === Ti(3)
         @test_throws InexactError convert(Ti, xd)
         @test_throws InexactError trunc(Ti, realmax(T))
         @test_throws InexactError floor(Ti, realmax(T))
@@ -94,7 +98,12 @@ for T in (Dec32, Dec64, Dec128)
             @test parse(T, "-17") == T(Ti(-17)) == Ti(-17) == Ti(T(-17))
         end
         if Ti <: Signed || Ti === Integer
-            @test floor(Ti, T(-4.5)) == -5 == trunc(Ti, T(-4.5)) - 1 == ceil(Ti, T(-4.5)) - 1
+            @test trunc(Ti, T(-2.7)) === round(Ti, T(-2.7), RoundToZero) === Ti(-2)
+            @test floor(Ti, T(-2.3)) === round(Ti, T(-2.3), RoundDown) === round(Ti, T(-2.3), RoundFromZero) === Ti(-3)
+            @test ceil(Ti, T(-2.7)) === round(Ti, T(-2.7), RoundUp) === Ti(-2)
+            @test round(Ti, T(-1.5)) === round(Ti, T(-2.5)) === round(Ti, T(-1.5), RoundNearest) === round(Ti, T(-2.5), RoundNearest) === Ti(-2)
+            @test round(Ti, T(-2.5), RoundNearestTiesAway) === round(Ti, T(-3.3), RoundNearestTiesAway) === Ti(-3)
+            @test round(Ti, T(-1.5), RoundNearestTiesUp) === round(Ti, T(-0.7), RoundNearestTiesUp) === Ti(-1)
             @test_throws InexactError convert(Ti, yd)
         end
     end

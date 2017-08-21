@@ -184,6 +184,8 @@ for w in (32,64,128)
                 Base.trunc(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xint")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
                 Base.floor(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
                 Base.ceil(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xceil")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
+                Base.round(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xrnint")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
+                Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xrninta")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
                 Base.convert(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError)
             end
         end
@@ -197,7 +199,19 @@ end # widths w
 Base.trunc(::Type{Integer}, x::DecimalFloatingPoint) = trunc(Int, x)
 Base.floor(::Type{Integer}, x::DecimalFloatingPoint) = floor(Int, x)
 Base.ceil(::Type{Integer}, x::DecimalFloatingPoint) = ceil(Int, x)
+Base.round(::Type{Integer}, x::DecimalFloatingPoint) = round(Int, x)
+Base.round(::Type{Integer}, x::DecimalFloatingPoint, ::RoundingMode{:NearestTiesAway}) = round(Int, x, RoundNearestTiesAway)
 Base.convert(::Type{Integer}, x::DecimalFloatingPoint) = convert(Int, x)
+
+Base.round{T<:Integer}(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:Nearest}) = round(T, x)
+function Base.round{T<:Integer}(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:NearestTiesUp})
+    y = floor(T, x)
+    ifelse(x==y, y, copysign(floor(T, 2*x-y), x))
+end
+Base.round{T<:Integer}(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:ToZero}) = trunc(T, x)
+Base.round{T<:Integer}(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:FromZero}) = (x>=0 ? ceil(T, x) : floor(T, x))
+Base.round{T<:Integer}(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:Up}) = ceil(T, x)
+Base.round{T<:Integer}(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:Down}) = floor(T, x)
 
 # the complex-sqrt function in base doesn't work for use, because it requires base-2 ldexp
 function Base.sqrt{T<:DecimalFloatingPoint}(z::Complex{T})
