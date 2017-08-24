@@ -7,20 +7,36 @@ const _buffer = Vector{UInt8}(1024)
 
 import Base.promote_rule
 
-# https://github.com/JuliaLang/julia/pull/20005
-if VERSION < v"0.7.0-DEV.896"
-    Base.InexactError(name::Symbol, T, val) = InexactError()
+function inexacterror(name, T, val)
+    @static if VERSION < v"0.7.0-DEV.896"
+        InexactError()
+    else
+        InexactError(name, T, val)
+    end
 end
 
-# https://github.com/JuliaLang/julia/pull/22751
-if VERSION < v"0.7.0-DEV.924"
-    Base.DomainError(val) = DomainError()
-    Base.DomainError(val, msg) = DomainError()
+function domainerror(val)
+    @static if VERSION < v"0.7.0-DEV.924"
+        DomainError()
+    else
+        DomainError(val)
+    end
 end
 
-# https://github.com/JuliaLang/julia/pull/222761
-if VERSION < v"0.7.0-DEV.1285"
-    Base.OverflowError(msg) = OverflowError()
+function domainerror(val, msg)
+    @static if VERSION < v"0.7.0-DEV.924"
+        DomainError()
+    else
+        DomainError(val, msg)
+    end
+end
+
+function overflowerror(msg)
+    @static if VERSION < v"0.7.0-DEV.1285"
+        OverflowError()
+    else
+        OverflowError(msg)
+    end
 end
 
 # global pointers and dicts must be initialized at runtime (via __init__)
@@ -280,20 +296,21 @@ function xchk(x, args...; mask::Integer=0x3f)
     f = unsafe_load(flags)
     unsafe_store!(flags, 0)
     if f & mask != 0
-        f & INEXACT != 0 && throw(InexactError(args...))
-        f & OVERFLOW != 0 && throw(OverflowError(args...))
+        f & INEXACT != 0 && throw(inexacterror(args...))
+        f & OVERFLOW != 0 && throw(overflowerror(args...))
         f & DIVBYZERO != 0 && throw(DivideError())
-        f & INVALID != 0 && throw(DomainError(args...))
+        f & INVALID != 0 && throw(domainerror(args...))
         f & UNDERFLOW != 0 && error("underflow")
         f & UNNORMAL != 0 && error("unnormal")
     end
     return x
 end
 
+getexceptionfunction(e::Type{E}) where {E<:Exception} = e == InexactError ? inexacterror : e == OverflowError ? overflowerror : e == DomainError ? domainerror : e
 function xchk(x, exc::Type{E}, args...; mask::Integer=0x3f) where {E<:Exception}
     f = unsafe_load(flags)
     unsafe_store!(flags, 0)
-    f & mask != 0 && throw(exc(args...))
+    f & mask != 0 && throw(getexceptionfunction(exc)(args...))
     return x
 end
 
