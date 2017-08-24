@@ -1,4 +1,4 @@
-using DecFP, Compat
+using DecFP
 using Base.Test
 
 @test unsafe_load(DecFP.flags) == 0
