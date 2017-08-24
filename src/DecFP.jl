@@ -1,13 +1,27 @@
 module DecFP
 export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str
 
-using Compat
-
 const libbid = joinpath(dirname(@__FILE__), "..", "deps", "libbid$(Sys.WORD_SIZE)")
 
-const _buffer = Array{UInt8}(1024)
+const _buffer = Vector{UInt8}(1024)
 
 import Base.promote_rule
+
+# https://github.com/JuliaLang/julia/pull/20005
+if VERSION < v"0.7.0-DEV.896"
+    Base.InexactError(name::Symbol, T, val) = InexactError()
+end
+
+# https://github.com/JuliaLang/julia/pull/22751
+if VERSION < v"0.7.0-DEV.924"
+    Base.DomainError(val) = DomainError()
+    Base.DomainError(val, msg) = DomainError()
+end
+
+# https://github.com/JuliaLang/julia/pull/222761
+if VERSION < v"0.7.0-DEV.1285"
+    Base.OverflowError(msg) = OverflowError()
+end
 
 # global pointers and dicts must be initialized at runtime (via __init__)
 function __init__()
@@ -30,19 +44,14 @@ const INEXACT    = 0x20
 
 bidsym(w,s...) = string("__bid", w, "_", s...)
 
-@compat abstract type DecimalFloatingPoint <: AbstractFloat end
-if VERSION < v"0.5"
-    Base.get_rounding{T<:DecimalFloatingPoint}(::Type{T}) = rounding_c2j[unsafe_load(rounding)+1]
-    Base.set_rounding{T<:DecimalFloatingPoint}(::Type{T}, r::RoundingMode) = unsafe_store!(rounding, rounding_j2c[r])
-else
-    Base.rounding{T<:DecimalFloatingPoint}(::Type{T}) = rounding_c2j[unsafe_load(rounding)+1]
-    Base.setrounding{T<:DecimalFloatingPoint}(::Type{T}, r::RoundingMode) = unsafe_store!(rounding, rounding_j2c[r])
-end
+abstract type DecimalFloatingPoint <: AbstractFloat end
+Base.rounding(::Type{T}) where {T<:DecimalFloatingPoint} = rounding_c2j[unsafe_load(rounding)+1]
+Base.setrounding(::Type{T}, r::RoundingMode) where {T<:DecimalFloatingPoint} = unsafe_store!(rounding, rounding_j2c[r])
 
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
     Ti = Symbol(string("UInt",w))
-    @eval immutable $BID <: DecimalFloatingPoint
+    @eval struct $BID <: DecimalFloatingPoint
         x::$Ti
         $BID(x) = convert($BID, x)
         Base.reinterpret(::Type{$BID}, x::$Ti) = new(x)
@@ -90,7 +99,7 @@ for w in (32,64,128)
             if isnan(x) && !isnanstr(s)
                 throw(ArgumentError("invalid number format $s"))
             end
-            return xchk(x, InexactError)
+            return xchk(x, InexactError, :parse, $BID, s)
         end
 
         function Base.show(io::IO, x::$BID)
@@ -109,7 +118,7 @@ for w in (32,64,128)
 
         Base.nextfloat(x::$BID) = nox(_nextfloat(x))
         Base.prevfloat(x::$BID) = nox(_prevfloat(x))
-        Base.eps(x::$BID) = ifelse(isfinite(x), xchk(nextfloat(x) - x, OVERFLOW), $(_parse(T, "NaN")))
+        Base.eps(x::$BID) = ifelse(isfinite(x), xchk(nextfloat(x) - x, OVERFLOW, "$($BID) value overflow"), $(_parse(T, "NaN")))
 
         # the meaning of the exponent is different than for binary FP: it is 10^n, not 2^n:
         # Base.exponent(x::$BID) = nox(ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,), x))
@@ -125,11 +134,11 @@ for w in (32,64,128)
     end
 
     for f in (:exp,:log,:sin,:cos,:tan,:asin,:acos,:atan,:sinh,:cosh,:tanh,:asinh,:acosh,:atanh,:log1p,:expm1,:log10,:log2,:exp2,:exp10,:lgamma,:sqrt,:cbrt,:abs)
-        @eval Base.$f(x::$BID) = xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,), x), INVALID)
+        @eval Base.$f(x::$BID) = xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,), x), "invalid operation '$($f)' on $($BID)", mask=INVALID)
     end
 
     for (f,c) in ((:gamma,"tgamma"), (:-,"negate"), (:round,"nearbyint"))
-        @eval Base.$f(x::$BID) = xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), INVALID)
+        @eval Base.$f(x::$BID) = xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), "invalid operation '$($c)' on $($BID)", mask=INVALID)
     end
 
     for (f,c) in ((:(==),"quiet_equal"), (:>,"quiet_greater"), (:<,"quiet_less"), (:(>=), "quiet_greater_equal"), (:(<=), "quiet_less_equal"))
@@ -146,7 +155,7 @@ for w in (32,64,128)
 
     for c in (:π, :e, :γ, :catalan, :φ)
         @eval begin
-            Base.convert(::Type{$BID}, ::Irrational{$(QuoteNode(c))}) = $(_parse(T, @compat setprecision(256) do
+            Base.convert(::Type{$BID}, ::Irrational{$(QuoteNode(c))}) = $(_parse(T, setprecision(256) do
                                                                                       string(BigFloat(eval(c)))
                                                                                   end))
         end
@@ -160,7 +169,7 @@ for w in (32,64,128)
             @eval promote_rule(::Type{$BID}, ::Type{$BID′}) = $BID
         end
         if w != w′
-            @eval Base.convert(::Type{$BID}, x::$BID′) = xchk(ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,), x), INEXACT)
+            @eval Base.convert(::Type{$BID}, x::$BID′) = xchk(ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,), x), INEXACT, :convert, $BID, x)
         end
 
         # promote binary*decimal -> decimal, for consistency with other operations above
@@ -181,12 +190,12 @@ for w in (32,64,128)
         for i′ in ("Int$w′", "UInt$w′")
             Ti′ = eval(Symbol(i′))
             @eval begin
-                Base.trunc(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xint")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
-                Base.floor(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
-                Base.ceil(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xceil")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
-                Base.round(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xrnint")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
-                Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xrninta")), libbid), $Ti′, ($BID,), x), InexactError, INVALID | OVERFLOW)
-                Base.convert(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError)
+                Base.trunc(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xint")), libbid), $Ti′, ($BID,), x), InexactError, :trunc, $BID, x, mask=INVALID | OVERFLOW)
+                Base.floor(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, :floor, $BID, x, mask=INVALID | OVERFLOW)
+                Base.ceil(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xceil")), libbid), $Ti′, ($BID,), x), InexactError, :ceil, $BID, x, mask=INVALID | OVERFLOW)
+                Base.round(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xrnint")), libbid), $Ti′, ($BID,), x), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
+                Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xrninta")), libbid), $Ti′, ($BID,), x), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
+                Base.convert(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, :convert, $BID, x)
             end
         end
     end
@@ -203,18 +212,18 @@ Base.round(::Type{Integer}, x::DecimalFloatingPoint) = round(Int, x)
 Base.round(::Type{Integer}, x::DecimalFloatingPoint, ::RoundingMode{:NearestTiesAway}) = round(Int, x, RoundNearestTiesAway)
 Base.convert(::Type{Integer}, x::DecimalFloatingPoint) = convert(Int, x)
 
-Base.round{T<:Integer}(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:Nearest}) = round(T, x)
-function Base.round{T<:Integer}(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:NearestTiesUp})
+Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:Nearest}) where {T<:Integer} = round(T, x)
+function Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:NearestTiesUp}) where {T<:Integer}
     y = floor(T, x)
     ifelse(x==y, y, copysign(floor(T, 2*x-y), x))
 end
-Base.round{T<:Integer}(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:ToZero}) = trunc(T, x)
-Base.round{T<:Integer}(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:FromZero}) = (x>=0 ? ceil(T, x) : floor(T, x))
-Base.round{T<:Integer}(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:Up}) = ceil(T, x)
-Base.round{T<:Integer}(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:Down}) = floor(T, x)
+Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:ToZero}) where {T<:Integer} = trunc(T, x)
+Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:FromZero}) where {T<:Integer} = (x>=0 ? ceil(T, x) : floor(T, x))
+Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:Up}) where {T<:Integer} = ceil(T, x)
+Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:Down}) where {T<:Integer} = floor(T, x)
 
 # the complex-sqrt function in base doesn't work for use, because it requires base-2 ldexp
-function Base.sqrt{T<:DecimalFloatingPoint}(z::Complex{T})
+function Base.sqrt(z::Complex{T}) where {T<:DecimalFloatingPoint}
     x, y = reim(z)
     x==y==0 && return Complex(zero(x),y)
     ρ = sqrt((abs(x) + hypot(x,y)) * 0.5)
@@ -242,17 +251,17 @@ for T in (Dec32,Dec64,Dec128)
     end
 end
 
-Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Union{Int8,UInt8,Int16,UInt16}) = F(Int32(x))
-Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Integer) = F(Int64(x))
-Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Unsigned) = F(UInt64(x))
-Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Rational) = F(x.num) / F(x.den)
-Base.convert{F<:DecimalFloatingPoint}(T::Type{F}, x::Float16) = F(Float32(x))
-promote_rule{F<:DecimalFloatingPoint}(::Type{F}, ::Type{Float16}) = F
-promote_rule{F<:DecimalFloatingPoint,T<:Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64}}(::Type{F}, ::Type{T}) = F
+Base.convert(T::Type{F}, x::Union{Int8,UInt8,Int16,UInt16}) where {F<:DecimalFloatingPoint} = F(Int32(x))
+Base.convert(T::Type{F}, x::Integer) where {F<:DecimalFloatingPoint} = F(Int64(x))
+Base.convert(T::Type{F}, x::Unsigned) where {F<:DecimalFloatingPoint} = F(UInt64(x))
+Base.convert(T::Type{F}, x::Rational) where {F<:DecimalFloatingPoint} = F(x.num) / F(x.den)
+Base.convert(T::Type{F}, x::Float16) where {F<:DecimalFloatingPoint} = F(Float32(x))
+promote_rule(::Type{F}, ::Type{Float16}) where {F<:DecimalFloatingPoint} = F
+promote_rule(::Type{F}, ::Type{T}) where {F<:DecimalFloatingPoint,T<:Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64}} = F
 
 # so that mathconsts get promoted to Dec32, not Dec64, like Float32
-promote_rule{s,F<:DecimalFloatingPoint}(::Type{Irrational{s}}, ::Type{F}) = F
-promote_rule{s,F<:DecimalFloatingPoint}(::Type{Irrational{s}}, T::Type{Complex{F}}) = T
+promote_rule(::Type{Irrational{s}}, ::Type{F}) where {s,F<:DecimalFloatingPoint} = F
+promote_rule(::Type{Irrational{s}}, T::Type{Complex{F}}) where {s,F<:DecimalFloatingPoint} = T
 
 macro d_str(s, flags...) parse(Dec64, s) end
 macro d32_str(s, flags...) parse(Dec32, s) end
@@ -267,24 +276,24 @@ end
 
 # check exception flags in mask & throw, otherwise returning x;
 # always clearing exceptions
-function xchk(x, mask::Integer=0x3f)
+function xchk(x, args...; mask::Integer=0x3f)
     f = unsafe_load(flags)
     unsafe_store!(flags, 0)
     if f & mask != 0
-        f & INEXACT != 0 && throw(InexactError())
-        f & OVERFLOW != 0 && throw(OverflowError())
+        f & INEXACT != 0 && throw(InexactError(args...))
+        f & OVERFLOW != 0 && throw(OverflowError(args...))
         f & DIVBYZERO != 0 && throw(DivideError())
-        f & INVALID != 0 && throw(DomainError())
+        f & INVALID != 0 && throw(DomainError(args...))
         f & UNDERFLOW != 0 && error("underflow")
         f & UNNORMAL != 0 && error("unnormal")
     end
     return x
 end
 
-function xchk{E<:Exception}(x, exc::Type{E}, mask::Integer=0x3f)
+function xchk(x, exc::Type{E}, args...; mask::Integer=0x3f) where {E<:Exception}
     f = unsafe_load(flags)
     unsafe_store!(flags, 0)
-    f & mask != 0 && throw(exc())
+    f & mask != 0 && throw(exc(args...))
     return x
 end
 
