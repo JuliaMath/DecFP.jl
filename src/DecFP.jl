@@ -6,6 +6,7 @@ const libbid = joinpath(dirname(@__FILE__), "..", "deps", "libbid$(Sys.WORD_SIZE
 const _buffer = Vector{UInt8}(1024)
 
 import Base.promote_rule
+import Base.Grisu.DIGITS
 
 # https://github.com/JuliaLang/julia/pull/20005
 if VERSION < v"0.7.0-DEV.896"
@@ -102,9 +103,78 @@ for w in (32,64,128)
             return xchk(x, InexactError, :parse, $BID, s)
         end
 
+        $BID(x::AbstractString) = parse($BID, x)
+
         function Base.show(io::IO, x::$BID)
             ccall(($(bidsym(w,"to_string")), libbid), Void, (Ptr{UInt8}, $BID), _buffer, x)
             unsafe_write(io, pointer(_buffer), ccall(:strlen, Csize_t, (Ptr{UInt8},), _buffer))
+        end
+
+        function Base.Printf.fix_dec(x::$BID, n::Int)
+            if n > length(DIGITS) - 1
+                n = length(DIGITS) - 1
+            end
+            # rounded = round(x * exp10($BID(n)), RoundNearestTiesAway)
+            rounded = xchk(ccall(($(bidsym(w,"round_integral_nearest_away")), libbid), $BID, ($BID,), x * exp10($BID(n))), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
+            if rounded == 0
+                DIGITS[1] = UInt8('0')
+                return Int32(1), Int32(1), signbit(x)
+            end
+            ccall(($(bidsym(w,"to_string")), libbid), Void, (Ptr{UInt8}, $BID), _buffer, rounded)
+            trailing_zeros = 0
+            i = 2
+            while _buffer[i] != UInt8('E')
+                DIGITS[i - 1] = _buffer[i]
+                if _buffer[i] == UInt8('0')
+                    trailing_zeros += 1
+                else
+                    trailing_zeros = 0
+                end
+                i += 1
+            end
+            ndigits = i - 2
+            len = ndigits - trailing_zeros
+            i += 1
+            if _buffer[i] == UInt8('+')
+                expsign = +1
+            elseif _buffer[i] == UInt8('-')
+                expsign = -1
+            end
+            exponent = 0
+            i += 1
+            while _buffer[i] != 0x00
+                exponent = exponent * 10 + _buffer[i] - UInt8('0')
+                i += 1
+            end
+            exponent *= expsign
+            pt = ndigits + exponent - n
+            neg = signbit(x)
+            return Int32(len), Int32(pt), neg
+        end
+
+        function Base.Printf.ini_dec(x::$BID, n::Int)
+            if n > length(DIGITS) - 1
+                n = length(DIGITS) - 1
+            end
+            if x == 0
+                for i = 1:n
+                    DIGITS[i] = UInt8('0')
+                end
+                return Int32(1), Int32(1), signbit(x)
+            end
+            normalized_exponent = nox(ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,), x))
+            # rounded = round(x * exp10($BID(n - 1 - normalized_exponent)), RoundNearestTiesAway)
+            rounded = xchk(ccall(($(bidsym(w,"round_integral_nearest_away")), libbid), $BID, ($BID,), x * exp10($BID(n - 1 - normalized_exponent))), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
+            rounded_exponent = nox(ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,), rounded))
+            ccall(($(bidsym(w,"to_string")), libbid), Void, (Ptr{UInt8}, $BID), _buffer, rounded)
+            i = 2
+            while _buffer[i] != UInt8('E')
+                DIGITS[i - 1] = _buffer[i]
+                i += 1
+            end
+            pt = normalized_exponent + rounded_exponent - n + 2
+            neg = signbit(x)
+            return Int32(n), Int32(pt), neg
         end
 
         Base.fma(x::$BID, y::$BID, z::$BID) = nox(ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID), x, y, z))
