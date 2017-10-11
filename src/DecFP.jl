@@ -79,6 +79,14 @@ function isnanstr(s::AbstractString)
     return true
 end
 
+function Base.show(io::IO, x::DecimalFloatingPoint)
+    s = @sprintf("%g", x)
+    if ismatch(r"^-?\d+$", s)
+        s *= ".0"
+    end
+    print(io, s)
+end
+
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
     Ti = eval(Symbol(string("UInt",w)))
@@ -104,11 +112,6 @@ for w in (32,64,128)
         end
 
         $BID(x::AbstractString) = parse($BID, x)
-
-        function Base.show(io::IO, x::$BID)
-            ccall(($(bidsym(w,"to_string")), libbid), Void, (Ptr{UInt8}, $BID), _buffer, x)
-            unsafe_write(io, pointer(_buffer), ccall(:strlen, Csize_t, (Ptr{UInt8},), _buffer))
-        end
 
         function Base.Printf.fix_dec(x::$BID, n::Int)
             if n > length(DIGITS) - 1
