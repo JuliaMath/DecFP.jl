@@ -3,7 +3,7 @@ export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str
 
 const libbid = joinpath(dirname(@__FILE__), "..", "deps", "libbid$(Sys.WORD_SIZE)")
 
-const _buffer = Vector{UInt8}(1024)
+const _buffer = fill(0x00, 1024)
 
 import Base.promote_rule
 import Base.Grisu.DIGITS
@@ -71,11 +71,11 @@ function isnanstr(s::AbstractString)
         c, i = next(s, i)
         done(s, i) && return false
     end
-    lowercase(c) == 'n' || return false
+    (c == 'n' || c == 'N') || return false
     c, i = next(s, i)
-    (!done(s, i) && lowercase(c) == 'a') || return false
+    (!done(s, i) && (c == 'a' || c == 'A')) || return false
     c, i = next(s, i)
-    (done(s, i) && lowercase(c) == 'n') || return false
+    (done(s, i) && (c == 'n' || c == 'N')) || return false
     return true
 end
 
@@ -229,7 +229,7 @@ for w in (32,64,128)
     for c in (:π, :e, :γ, :catalan, :φ)
         @eval begin
             Base.convert(::Type{$BID}, ::Irrational{$(QuoteNode(c))}) = $(_parse(T, setprecision(256) do
-                                                                                      string(BigFloat(eval(c)))
+                                                                                      string(BigFloat(isdefined(Base, :MathConstants) ? eval(Base.MathConstants, c) : eval(c)))
                                                                                   end))
         end
     end
@@ -250,25 +250,25 @@ for w in (32,64,128)
         if w′ <= 64
             FP′ = Symbol(string("Float",w′))
             @eval promote_rule(::Type{$BID}, ::Type{$FP′}) = $(Symbol(string("Dec",max(w,w′))))
-            for i′ in ("Int$w′", "UInt$w′")
+            for (i′, i′str) in (("Int$w′", "int$w′"), ("UInt$w′", "uint$w′"))
                 Ti′ = eval(Symbol(i′))
                 @eval begin
-                    Base.convert(::Type{$BID}, x::$Ti′) = nox(ccall(($(bidsym(w,"from_",lowercase(i′))), libbid), $BID, ($Ti′,), x))
+                    Base.convert(::Type{$BID}, x::$Ti′) = nox(ccall(($(bidsym(w,"from_",i′str)), libbid), $BID, ($Ti′,), x))
                 end
             end
         end
     end
 
     for w′ in (8,16,32,64)
-        for i′ in ("Int$w′", "UInt$w′")
+        for (i′, i′str) in (("Int$w′", "int$w′"), ("UInt$w′", "uint$w′"))
             Ti′ = eval(Symbol(i′))
             @eval begin
-                Base.trunc(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xint")), libbid), $Ti′, ($BID,), x), InexactError, :trunc, $BID, x, mask=INVALID | OVERFLOW)
-                Base.floor(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, :floor, $BID, x, mask=INVALID | OVERFLOW)
-                Base.ceil(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xceil")), libbid), $Ti′, ($BID,), x), InexactError, :ceil, $BID, x, mask=INVALID | OVERFLOW)
-                Base.round(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xrnint")), libbid), $Ti′, ($BID,), x), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
-                Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xrninta")), libbid), $Ti′, ($BID,), x), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
-                Base.convert(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",lowercase(i′),"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, :convert, $BID, x)
+                Base.trunc(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",i′str,"_xint")), libbid), $Ti′, ($BID,), x), InexactError, :trunc, $BID, x, mask=INVALID | OVERFLOW)
+                Base.floor(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, :floor, $BID, x, mask=INVALID | OVERFLOW)
+                Base.ceil(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",i′str,"_xceil")), libbid), $Ti′, ($BID,), x), InexactError, :ceil, $BID, x, mask=INVALID | OVERFLOW)
+                Base.round(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",i′str,"_xrnint")), libbid), $Ti′, ($BID,), x), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
+                Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = xchk(ccall(($(bidsym(w,"to_",i′str,"_xrninta")), libbid), $Ti′, ($BID,), x), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
+                Base.convert(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, :convert, $BID, x)
             end
         end
     end
