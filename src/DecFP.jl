@@ -1,4 +1,15 @@
 module DecFP
+
+using Compat
+
+if !(VERSION < v"0.7.0-DEV.3026")
+    using Printf
+end
+
+if !(VERSION < v"0.7.0-DEV.2813")
+    using Unicode
+end
+
 export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str
 
 const libbid = joinpath(dirname(@__FILE__), "..", "deps", "libbid$(Sys.WORD_SIZE)")
@@ -7,22 +18,6 @@ const _buffer = fill(0x00, 1024)
 
 import Base.promote_rule
 import Base.Grisu.DIGITS
-
-# https://github.com/JuliaLang/julia/pull/20005
-if VERSION < v"0.7.0-DEV.896"
-    Base.InexactError(name::Symbol, T, val) = InexactError()
-end
-
-# https://github.com/JuliaLang/julia/pull/22751
-if VERSION < v"0.7.0-DEV.924"
-    Base.DomainError(val) = DomainError()
-    Base.DomainError(val, msg) = DomainError()
-end
-
-# https://github.com/JuliaLang/julia/pull/222761
-if VERSION < v"0.7.0-DEV.1285"
-    Base.OverflowError(msg) = OverflowError()
-end
 
 # global pointers and dicts must be initialized at runtime (via __init__)
 function __init__()
@@ -226,7 +221,7 @@ for w in (32,64,128)
         end
     end
 
-    for c in (:π, :e, :γ, :catalan, :φ)
+    for c in (:π, :e, :ℯ, :γ, :catalan, :φ)
         @eval begin
             Base.convert(::Type{$BID}, ::Irrational{$(QuoteNode(c))}) = $(_parse(T, setprecision(256) do
                                                                                       string(BigFloat(isdefined(Base, :MathConstants) ? eval(Base.MathConstants, c) : eval(c)))
