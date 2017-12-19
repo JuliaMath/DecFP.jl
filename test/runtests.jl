@@ -1,5 +1,16 @@
 using DecFP
-using Base.Test
+
+@static if VERSION < v"0.7.0-DEV.2005"
+    using Base.Test
+else
+    using Test
+end
+if !(VERSION < v"0.7.0-DEV.3026")
+    using Printf
+end
+if !(VERSION < v"0.7.0-DEV.1592")
+    using Base.MathConstants
+end
 
 @test unsafe_load(DecFP.flags) == 0
 
