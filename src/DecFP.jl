@@ -1,3 +1,4 @@
+__precompile__(true)
 module DecFP
 
 using Compat
@@ -52,6 +53,7 @@ for w in (32,64,128)
         $BID(x) = convert($BID, x)
         Base.reinterpret(::Type{$BID}, x::$Ti) = new(x)
     end
+    @eval $BID(x::Rational{T}) where {T} = convert($BID, x)
 end
 
 # quickly check whether s begins with "±nan"
@@ -118,7 +120,7 @@ for w in (32,64,128)
                 DIGITS[1] = UInt8('0')
                 return Int32(1), Int32(1), signbit(x)
             end
-            ccall(($(bidsym(w,"to_string")), libbid), Void, (Ptr{UInt8}, $BID), _buffer, rounded)
+            ccall(($(bidsym(w,"to_string")), libbid), Cvoid, (Ptr{UInt8}, $BID), _buffer, rounded)
             trailing_zeros = 0
             i = 2
             while _buffer[i] != UInt8('E')
@@ -164,7 +166,7 @@ for w in (32,64,128)
             # rounded = round(x * exp10($BID(n - 1 - normalized_exponent)), RoundNearestTiesAway)
             rounded = xchk(ccall(($(bidsym(w,"round_integral_nearest_away")), libbid), $BID, ($BID,), x * exp10($BID(n - 1 - normalized_exponent))), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
             rounded_exponent = nox(ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,), rounded))
-            ccall(($(bidsym(w,"to_string")), libbid), Void, (Ptr{UInt8}, $BID), _buffer, rounded)
+            ccall(($(bidsym(w,"to_string")), libbid), Cvoid, (Ptr{UInt8}, $BID), _buffer, rounded)
             i = 2
             while _buffer[i] != UInt8('E')
                 DIGITS[i - 1] = _buffer[i]
@@ -217,6 +219,7 @@ for w in (32,64,128)
         bT = string("binary",sizeof(Tf)*8)
         @eval begin
             Base.convert(::Type{$Tf}, x::$BID) = nox(ccall(($(bidsym(w,"to_",bT)), libbid), $Tf, ($BID,), x))
+            Base.$(Symbol("$Tf"))(x::$BID) = convert($Tf, x)
             Base.convert(::Type{$BID}, x::$Tf) = nox(ccall(($(string("__",bT,"_to_","bid",w)), libbid), $BID, ($Tf,), x))
         end
     end
@@ -264,12 +267,14 @@ for w in (32,64,128)
                 Base.round(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",i′str,"_xrnint")), libbid), $Ti′, ($BID,), x), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
                 Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = xchk(ccall(($(bidsym(w,"to_",i′str,"_xrninta")), libbid), $Ti′, ($BID,), x), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
                 Base.convert(::Type{$Ti′}, x::$BID) = xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, :convert, $BID, x)
+                Base.$(Symbol("$Ti′"))(x::$BID) = convert($Ti′, x)
             end
         end
     end
 
     @eval Base.bswap(x::$BID) = reinterpret($BID, bswap(x.x))
     @eval Base.convert(::Type{Float16}, x::$BID) = convert(Float16, convert(Float32, x))
+    @eval Base.Float16(x::$BID) = convert(Float16, x)
     @eval Base.reinterpret(::Type{$Ti}, x::$BID) = x.x
 end # widths w
 
