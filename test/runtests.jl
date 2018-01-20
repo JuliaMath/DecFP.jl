@@ -1,18 +1,10 @@
-using DecFP
+using DecFP, Compat.Test, Compat.Printf
 
-@static if VERSION < v"0.7.0-DEV.2005"
-    using Base.Test
-else
-    using Test
-end
-if !(VERSION < v"0.7.0-DEV.3026")
-    using Printf
-end
 if !(VERSION < v"0.7.0-DEV.1592")
     using Base.MathConstants
 end
 
-@test unsafe_load(DecFP.flags) == 0
+@test unsafe_load(DecFP.flags[]) == 0
 
 import DecFP.isnanstr
 @test isnanstr("nan") && isnanstr("  +NAN") && isnanstr("-NaN") && !isnanstr("nano")
@@ -181,7 +173,7 @@ for T in (Dec32, Dec64, Dec128)
     @test typeof((xd+yd*im)*pi) == Complex{T}
 end
 
-@test unsafe_load(DecFP.flags) == 0
+@test unsafe_load(DecFP.flags[]) == 0
 
 # issue #37
 @test reinterpret(UInt128, Dec128(1.5)) == 0x303e000000000000000000000000000f

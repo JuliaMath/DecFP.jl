@@ -1,15 +1,7 @@
 __precompile__(true)
 module DecFP
 
-using Compat
-
-if !(VERSION < v"0.7.0-DEV.3026")
-    using Printf
-end
-
-if !(VERSION < v"0.7.0-DEV.2813")
-    using Unicode
-end
+using Compat, Compat.Printf, Compat.Unicode
 
 export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str
 
@@ -20,15 +12,18 @@ const _buffer = fill(0x00, 1024)
 import Base.promote_rule
 import Base.Grisu.DIGITS
 
+const rounding = Ref{Ptr{Cuint}}()
+const flags = Ref{Ptr{Cuint}}()
+# rounding modes, from bid_functions.h
+
+const rounding_c2j = [RoundNearest, RoundDown, RoundUp, RoundToZero, RoundFromZero]
+const rounding_j2c = Dict{RoundingMode, UInt32}([(rounding_c2j[i], Cuint(i-1)) for i in 1:length(rounding_c2j)])
+
 # global pointers and dicts must be initialized at runtime (via __init__)
 function __init__()
-    global const rounding = cglobal((:__bid_IDEC_glbround, libbid), Cuint) # rounding mode
-    global const flags = cglobal((:__bid_IDEC_glbflags, libbid), Cuint) # exception status
-    unsafe_store!(flags, 0)
-
-    # rounding modes, from bid_functions.h
-    global const rounding_c2j = [RoundNearest, RoundDown, RoundUp, RoundToZero, RoundFromZero]
-    global const rounding_j2c = Dict{RoundingMode, UInt32}([(rounding_c2j[i], Cuint(i-1)) for i in 1:length(rounding_c2j)])
+    global rounding[] = cglobal((:__bid_IDEC_glbround, libbid), Cuint) # rounding mode
+    global flags[] = cglobal((:__bid_IDEC_glbflags, libbid), Cuint) # exception status
+    unsafe_store!(flags[], 0)
 end
 
 # status flags from bid_functions.h:
@@ -42,8 +37,8 @@ const INEXACT    = 0x20
 bidsym(w,s...) = string("__bid", w, "_", s...)
 
 abstract type DecimalFloatingPoint <: AbstractFloat end
-Base.rounding(::Type{T}) where {T<:DecimalFloatingPoint} = rounding_c2j[unsafe_load(rounding)+1]
-Base.setrounding(::Type{T}, r::RoundingMode) where {T<:DecimalFloatingPoint} = unsafe_store!(rounding, rounding_j2c[r])
+Base.rounding(::Type{T}) where {T<:DecimalFloatingPoint} = rounding_c2j[unsafe_load(rounding[])+1]
+Base.setrounding(::Type{T}, r::RoundingMode) where {T<:DecimalFloatingPoint} = unsafe_store!(rounding[], rounding_j2c[r])
 
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
@@ -343,15 +338,15 @@ macro d128_str(s, flags...) parse(Dec128, s) end
 
 # clear exception flags and return x
 function nox(x)
-    unsafe_store!(flags, 0)
+    unsafe_store!(flags[], 0)
     return x
 end
 
 # check exception flags in mask & throw, otherwise returning x;
 # always clearing exceptions
 function xchk(x, args...; mask::Integer=0x3f)
-    f = unsafe_load(flags)
-    unsafe_store!(flags, 0)
+    f = unsafe_load(flags[])
+    unsafe_store!(flags[], 0)
     if f & mask != 0
         f & INEXACT != 0 && throw(InexactError(args...))
         f & OVERFLOW != 0 && throw(OverflowError(args...))
@@ -364,8 +359,8 @@ function xchk(x, args...; mask::Integer=0x3f)
 end
 
 function xchk(x, exc::Type{E}, args...; mask::Integer=0x3f) where {E<:Exception}
-    f = unsafe_load(flags)
-    unsafe_store!(flags, 0)
+    f = unsafe_load(flags[])
+    unsafe_store!(flags[], 0)
     f & mask != 0 && throw(exc(args...))
     return x
 end
