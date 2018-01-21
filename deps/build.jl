@@ -1,4 +1,4 @@
-using BinDeps
+using BinDeps, Compat.Libdl
 
 vers = "20U1"
 
