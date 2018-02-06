@@ -102,6 +102,9 @@ for T in (Dec32, Dec64, Dec128)
     @test nextfloat(T(1.5e10)) == 1.5e10 + eps(T(1.5e10))
     @test prevfloat(T(1.5e10)) == 1.5e10 - eps(T(1.5e10))
 
+    @test eps(maxintfloat(T) - 1) == 1
+    @test eps(maxintfloat(T)) == 10
+
     for f in (isnan,isinf,isfinite,issubnormal,abs)
         @test f(xd) == f(x)
     end

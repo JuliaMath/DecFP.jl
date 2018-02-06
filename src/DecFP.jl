@@ -319,6 +319,10 @@ for T in (Dec32,Dec64,Dec128)
     end
 end
 
+Base.maxintfloat(::Type{Dec32}) = Dec32(10_000_000)    # 1e+07
+Base.maxintfloat(::Type{Dec64}) = Dec64(10_000_000_000_000_000)    # 1e+16
+Base.maxintfloat(::Type{Dec128}) = Dec128("1e+34")
+
 Base.convert(T::Type{F}, x::Union{Int8,UInt8,Int16,UInt16}) where {F<:DecimalFloatingPoint} = F(Int32(x))
 Base.convert(T::Type{F}, x::Integer) where {F<:DecimalFloatingPoint} = F(Int64(x))
 Base.convert(T::Type{F}, x::Unsigned) where {F<:DecimalFloatingPoint} = F(UInt64(x))
