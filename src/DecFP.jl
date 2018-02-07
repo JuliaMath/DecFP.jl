@@ -73,7 +73,7 @@ end
 
 function Base.show(io::IO, x::DecimalFloatingPoint)
     s = @sprintf("%g", x)
-    if ismatch(r"^-?\d+$", s)
+    if contains(s, r"^-?\d+$")
         s *= ".0"
     end
     print(io, s)
