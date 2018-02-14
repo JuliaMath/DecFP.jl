@@ -71,14 +71,6 @@ function isnanstr(s::AbstractString)
     return true
 end
 
-function Base.show(io::IO, x::DecimalFloatingPoint)
-    s = @sprintf("%g", x)
-    if contains(s, r"^-?\d+$")
-        s *= ".0"
-    end
-    print(io, s)
-end
-
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
     Ti = eval(Symbol(string("UInt",w)))
@@ -104,6 +96,83 @@ for w in (32,64,128)
         end
 
         $BID(x::AbstractString) = parse($BID, x)
+
+        function Base.show(io::IO, x::$BID)
+            if isnan(x)
+                write(io, "NaN")
+                return
+            end
+            if isinf(x)
+                if signbit(x)
+                    write(io, "-Inf")
+                else
+                    write(io, "Inf")
+                end
+                return
+            end
+            if x == 0
+                if signbit(x)
+                    write(io, "-0.0")
+                else
+                    write(io, "0.0")
+                end
+                return
+            end
+            ccall(($(bidsym(w,"to_string")), libbid), Cvoid, (Ptr{UInt8}, $BID), _buffer, x)
+            if _buffer[1] == UInt8('-')
+                write(io, '-')
+            end
+            normalized_exponent = nox(ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,), x))
+            lastdigitindex = Compat.findfirst(equalto(UInt8('E')), _buffer) - 1
+            lastnonzeroindex = Compat.findlast(!equalto(UInt8('0')), view(_buffer, 1:lastdigitindex))
+            if -5 < normalized_exponent < 6
+                # %f
+                if normalized_exponent >= 0
+                    if normalized_exponent > lastnonzeroindex - 2
+                        unsafe_write(io, pointer(_buffer, 2), lastnonzeroindex - 1)
+                        write(io, '0'^(normalized_exponent - lastnonzeroindex + 2), ".0")
+                    elseif normalized_exponent == lastnonzeroindex - 2
+                        unsafe_write(io, pointer(_buffer, 2), lastnonzeroindex - 1)
+                        write(io, ".0")
+                    else
+                        unsafe_write(io, pointer(_buffer, 2), normalized_exponent + 1)
+                        write(io, '.')
+                        unsafe_write(io, pointer(_buffer, normalized_exponent + 3), lastnonzeroindex - normalized_exponent - 2)
+                    end
+                else
+                    if normalized_exponent == -1
+                        write(io, "0.")
+                    else
+                        write(io, "0.", '0'^(-normalized_exponent - 1))
+                    end
+                    unsafe_write(io, pointer(_buffer, 2), lastnonzeroindex - 1)
+                end
+            else
+                # %e
+                write(io, _buffer[2], '.')
+                if lastnonzeroindex == 2
+                    write(io, '0')
+                else
+                    unsafe_write(io, pointer(_buffer, 3), lastnonzeroindex - 2)
+                end
+                write(io, 'e')
+                if normalized_exponent < 0
+                    write(io, '-')
+                    normalized_exponent = -normalized_exponent
+                end
+                b_lb = div(normalized_exponent, 10)
+                b = 1
+                while b <= b_lb
+                    b *= 10
+                end
+                r = normalized_exponent
+                while b > 0
+                    q, r = divrem(r, b)
+                    write(io, Char('0' + q))
+                    b = div(b, 10)
+                end
+            end
+        end
 
         function Base.Printf.fix_dec(x::$BID, n::Int)
             if n > length(DIGITS) - 1
