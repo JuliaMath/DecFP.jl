@@ -51,7 +51,6 @@ for T in (Dec32, Dec64, Dec128)
     show(io, T("1")); @test String(take!(io)) == "1.0"
     show(io, T("-1")); @test String(take!(io)) == "-1.0"
     show(io, T("1.000")); @test String(take!(io)) == "1.0"
-    show(io, T("1.000")); @test String(take!(io)) == "1.0"
     show(io, T("1e5")); @test String(take!(io)) == "100000.0"
     show(io, T("1e6")); @test String(take!(io)) == "1.0e6"
     show(io, T("1.23456e6")); @test String(take!(io)) == "1.23456e6"
