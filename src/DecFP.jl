@@ -3,6 +3,23 @@ module DecFP
 
 using Compat, Compat.Printf, Compat.Unicode
 
+# When Compat PR #491 is merged, REQUIRE that version and delete this
+# 0.7.0-DEV.3469
+@static if !isdefined(Base, :GC)
+    @eval module GC
+        using Base: gc
+        const enable = Base.gc_enable
+        @static if !isdefined(Base, Symbol("@gc_preserve"))
+            macro preserve(args...)
+                esc(args[end])
+            end
+        else
+            @eval const $(Symbol("@preserve")) = Base.$(Symbol("@gc_preserve"))
+        end
+    end
+    export GC
+end
+
 export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str
 
 const libbid = joinpath(dirname(@__FILE__), "..", "deps", "libbid$(Sys.WORD_SIZE)")
@@ -71,14 +88,6 @@ function isnanstr(s::AbstractString)
     return true
 end
 
-function Base.show(io::IO, x::DecimalFloatingPoint)
-    s = @sprintf("%g", x)
-    if contains(s, r"^-?\d+$")
-        s *= ".0"
-    end
-    print(io, s)
-end
-
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
     Ti = eval(Symbol(string("UInt",w)))
@@ -104,6 +113,62 @@ for w in (32,64,128)
         end
 
         $BID(x::AbstractString) = parse($BID, x)
+
+        function Base.show(io::IO, x::$BID)
+            isnan(x) && (write(io, "NaN"); return)
+            isinf(x) && (write(io, signbit(x) ? "-Inf" : "Inf"); return)
+            x == 0 && (write(io, signbit(x) ? "-0.0" : "0.0"); return)
+            ccall(($(bidsym(w,"to_string")), libbid), Cvoid, (Ptr{UInt8}, $BID), _buffer, x)
+            if _buffer[1] == UInt8('-')
+                write(io, '-')
+            end
+            normalized_exponent = nox(ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,), x))
+            lastdigitindex = Compat.findfirst(equalto(UInt8('E')), _buffer) - 1
+            lastnonzeroindex = Compat.findlast(!equalto(UInt8('0')), view(_buffer, 1:lastdigitindex))
+            if -5 < normalized_exponent < 6
+                # %f
+                if normalized_exponent >= 0
+                    if normalized_exponent >= lastnonzeroindex - 2
+                        GC.@preserve _buffer unsafe_write(io, pointer(_buffer, 2), lastnonzeroindex - 1)
+                        writezeros(io, normalized_exponent - lastnonzeroindex + 2)
+                        write(io, ".0")
+                    else
+                        GC.@preserve _buffer unsafe_write(io, pointer(_buffer, 2), normalized_exponent + 1)
+                        write(io, '.')
+                        GC.@preserve _buffer unsafe_write(io, pointer(_buffer, normalized_exponent + 3), lastnonzeroindex - normalized_exponent - 2)
+                    end
+                else
+                    write(io, "0.")
+                    writezeros(io, -normalized_exponent - 1)
+                    GC.@preserve _buffer unsafe_write(io, pointer(_buffer, 2), lastnonzeroindex - 1)
+                end
+            else
+                # %e
+                write(io, _buffer[2], '.')
+                if lastnonzeroindex == 2
+                    write(io, '0')
+                else
+                    GC.@preserve _buffer unsafe_write(io, pointer(_buffer, 3), lastnonzeroindex - 2)
+                end
+                write(io, 'e')
+                if normalized_exponent < 0
+                    write(io, '-')
+                    normalized_exponent = -normalized_exponent
+                end
+                b_lb = div(normalized_exponent, 10)
+                b = 1
+                while b <= b_lb
+                    b *= 10
+                end
+                r = normalized_exponent
+                while b > 0
+                    q, r = divrem(r, b)
+                    write(io, UInt8('0') + (q%UInt8))
+                    b = div(b, 10)
+                end
+            end
+            return
+        end
 
         function Base.Printf.fix_dec(x::$BID, n::Int)
             if n > length(DIGITS) - 1
@@ -367,6 +432,12 @@ function xchk(x, exc::Type{E}, args...; mask::Integer=0x3f) where {E<:Exception}
     unsafe_store!(flags[], 0)
     f & mask != 0 && throw(exc(args...))
     return x
+end
+
+function writezeros(io::IO, n::Int)
+    for i = 1:n
+        write(io, UInt8('0'))
+    end
 end
 
 end # module

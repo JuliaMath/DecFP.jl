@@ -42,6 +42,25 @@ for T in (Dec32, Dec64, Dec128)
     @test parse(T, "0.1")::T == T(1//10)
     @test T("0.1")::T == T(1//10)
 
+    io = IOBuffer()
+    show(io, T("NaN")); @test String(take!(io)) == "NaN"
+    show(io, T("Inf")); @test String(take!(io)) == "Inf"
+    show(io, T("-Inf")); @test String(take!(io)) == "-Inf"
+    show(io, T("0")); @test String(take!(io)) == "0.0"
+    show(io, T("-0")); @test String(take!(io)) == "-0.0"
+    show(io, T("1")); @test String(take!(io)) == "1.0"
+    show(io, T("-1")); @test String(take!(io)) == "-1.0"
+    show(io, T("1.000")); @test String(take!(io)) == "1.0"
+    show(io, T("1e5")); @test String(take!(io)) == "100000.0"
+    show(io, T("1e6")); @test String(take!(io)) == "1.0e6"
+    show(io, T("1.23456e6")); @test String(take!(io)) == "1.23456e6"
+    show(io, T("1e-1")); @test String(take!(io)) == "0.1"
+    show(io, T("1e-4")); @test String(take!(io)) == "0.0001"
+    show(io, T("1e-5")); @test String(take!(io)) == "1.0e-5"
+    show(io, T("1.20e3")); @test String(take!(io)) == "1200.0"
+    show(io, T("123.456")); @test String(take!(io)) == "123.456"
+    show(io, T("0.00123456")); @test String(take!(io)) == "0.00123456"
+
     # some Dec128 tests fail due to Issue #47
     if T != Dec128
         @test @sprintf("%7.2f", T("1.2345")) == "   1.23"
