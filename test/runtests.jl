@@ -10,7 +10,7 @@ import DecFP.isnanstr
 @test isnanstr("nan") && isnanstr("  +NAN") && isnanstr("-NaN") && !isnanstr("nano")
 
 for T in (Dec32, Dec64, Dec128)
-    println(STDERR, "TESTING $T ...")
+    info("TESTING $T ...")
 
     if T == Dec32
         @test d32"3.2" * d32"4.5" == d32"14.4"
