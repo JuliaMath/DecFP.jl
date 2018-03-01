@@ -40,26 +40,11 @@ function nox(x)
     unsafe_store!(flags[], 0)
     return x
 end
+
 # Check exception flags in mask & throw, otherwise returning x;
-# always clearing exceptions.  These are macros so that
+# always clearing exceptions.  This is a macros so that
 # the error message is only evaluated if an exception occurs.
-
-macro xchk(x, args...)
-    mask=0x3f
-    if !isempty(args) && Meta.isexpr(args[end], :(=)) && args[end].args[1] == :mask  # mask=... keyword at end
-        mask = esc(args[end].args[2])
-        args = args[1:end-1]
-    end
-    quote
-        ret = $(esc(x))
-        f = unsafe_load(flags[])
-        unsafe_store!(flags[], 0)
-        f & $mask != 0 && xchk_throw(f, $(map(esc,args)...))
-        ret
-    end
-end
-
-macro xchk1(x, exc, args...)
+macro xchk(x, exc, args...)
     mask=0x3f
     if !isempty(args) && Meta.isexpr(args[end], :(=)) && args[end].args[1] == :mask # mask=... keyword at end
         mask = esc(args[end].args[2])
@@ -72,18 +57,6 @@ macro xchk1(x, exc, args...)
         f & $mask != 0 && throw($exc($(map(esc,args)...)))
         ret
     end
-end
-
-# separate this exception throwing code into a function to avoid
-# inlining it over and over in the @xchk macro
-function xchk_throw(f, args...)
-    f & INEXACT != 0 && throw(InexactError(args...))
-    f & OVERFLOW != 0 && throw(OverflowError(args...))
-    f & DIVBYZERO != 0 && throw(DivideError())
-    f & INVALID != 0 && throw(DomainError(args...))
-    f & UNDERFLOW != 0 && error("underflow")
-    f & UNNORMAL != 0 && error("unnormal")
-    @assert false # this should be unreachable
 end
 
 #############################################################################
@@ -167,7 +140,7 @@ for w in (32,64,128)
             if isnan(x) && !isnanstr(s)
                 throw(ArgumentError("invalid number format $s"))
             end
-            return @xchk1(x, InexactError, :parse, $BID, s)
+            return @xchk(x, InexactError, :parse, $BID, s)
         end
 
         $BID(x::AbstractString) = parse($BID, x)
@@ -233,7 +206,7 @@ for w in (32,64,128)
                 n = length(DIGITS) - 1
             end
             # rounded = round(x * exp10($BID(n)), RoundNearestTiesAway)
-            rounded = @xchk1(ccall(($(bidsym(w,"round_integral_nearest_away")), libbid), $BID, ($BID,), x * exp10($BID(n))), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
+            rounded = @xchk(ccall(($(bidsym(w,"round_integral_nearest_away")), libbid), $BID, ($BID,), x * exp10($BID(n))), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
             if rounded == 0
                 DIGITS[1] = UInt8('0')
                 return Int32(1), Int32(1), signbit(x)
@@ -306,7 +279,7 @@ for w in (32,64,128)
 
         Base.nextfloat(x::$BID) = nox(_nextfloat(x))
         Base.prevfloat(x::$BID) = nox(_prevfloat(x))
-        Base.eps(x::$BID) = ifelse(isfinite(x), @xchk(nextfloat(x) - x, "$($BID) value overflow", mask=OVERFLOW), $(_parse(T, "NaN")))
+        Base.eps(x::$BID) = ifelse(isfinite(x), @xchk(nextfloat(x) - x, OverflowError, "$($BID) value overflow", mask=OVERFLOW), $(_parse(T, "NaN")))
 
         # the meaning of the exponent is different than for binary FP: it is 10^n, not 2^n:
         # Base.exponent(x::$BID) = nox(ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,), x))
@@ -322,11 +295,11 @@ for w in (32,64,128)
     end
 
     for f in (:exp,:log,:sin,:cos,:tan,:asin,:acos,:atan,:sinh,:cosh,:tanh,:asinh,:acosh,:atanh,:log1p,:expm1,:log10,:log2,:exp2,:exp10,:lgamma,:sqrt,:cbrt,:abs)
-        @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,), x), "invalid operation '$($f)' on $($BID)", mask=INVALID)
+        @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
     end
 
     for (f,c) in ((:gamma,"tgamma"), (:-,"negate"), (:round,"nearbyint"))
-        @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), "invalid operation '$($c)' on $($BID)", mask=INVALID)
+        @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
     end
 
     for (f,c) in ((:(==),"quiet_equal"), (:>,"quiet_greater"), (:<,"quiet_less"), (:(>=), "quiet_greater_equal"), (:(<=), "quiet_less_equal"))
@@ -358,7 +331,7 @@ for w in (32,64,128)
             @eval promote_rule(::Type{$BID}, ::Type{$BID′}) = $BID
         end
         if w != w′
-            @eval Base.convert(::Type{$BID}, x::$BID′) = @xchk1(ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,), x), InexactError, :convert, $BID, x, mask=INEXACT)
+            @eval Base.convert(::Type{$BID}, x::$BID′) = @xchk(ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,), x), InexactError, :convert, $BID, x, mask=INEXACT)
         end
 
         # promote binary*decimal -> decimal, for consistency with other operations above
@@ -379,12 +352,12 @@ for w in (32,64,128)
         for (i′, i′str) in (("Int$w′", "int$w′"), ("UInt$w′", "uint$w′"))
             Ti′ = eval(Symbol(i′))
             @eval begin
-                Base.trunc(::Type{$Ti′}, x::$BID) = @xchk1(ccall(($(bidsym(w,"to_",i′str,"_xint")), libbid), $Ti′, ($BID,), x), InexactError, :trunc, $BID, x, mask=INVALID | OVERFLOW)
-                Base.floor(::Type{$Ti′}, x::$BID) = @xchk1(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, :floor, $BID, x, mask=INVALID | OVERFLOW)
-                Base.ceil(::Type{$Ti′}, x::$BID) = @xchk1(ccall(($(bidsym(w,"to_",i′str,"_xceil")), libbid), $Ti′, ($BID,), x), InexactError, :ceil, $BID, x, mask=INVALID | OVERFLOW)
-                Base.round(::Type{$Ti′}, x::$BID) = @xchk1(ccall(($(bidsym(w,"to_",i′str,"_xrnint")), libbid), $Ti′, ($BID,), x), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
-                Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = @xchk1(ccall(($(bidsym(w,"to_",i′str,"_xrninta")), libbid), $Ti′, ($BID,), x), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
-                Base.convert(::Type{$Ti′}, x::$BID) = @xchk1(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, :convert, $BID, x)
+                Base.trunc(::Type{$Ti′}, x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xint")), libbid), $Ti′, ($BID,), x), InexactError, :trunc, $BID, x, mask=INVALID | OVERFLOW)
+                Base.floor(::Type{$Ti′}, x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, :floor, $BID, x, mask=INVALID | OVERFLOW)
+                Base.ceil(::Type{$Ti′}, x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xceil")), libbid), $Ti′, ($BID,), x), InexactError, :ceil, $BID, x, mask=INVALID | OVERFLOW)
+                Base.round(::Type{$Ti′}, x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xrnint")), libbid), $Ti′, ($BID,), x), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
+                Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xrninta")), libbid), $Ti′, ($BID,), x), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
+                Base.convert(::Type{$Ti′}, x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,), x), InexactError, :convert, $BID, x)
                 Base.$(Symbol("$Ti′"))(x::$BID) = convert($Ti′, x)
             end
         end
