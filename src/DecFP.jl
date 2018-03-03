@@ -376,7 +376,7 @@ for w in (32,64,128)
     @eval Base.reinterpret(::Type{$Ti}, x::$BID) = x.x
 end # widths w
 
-Base.round(x::DecimalFloatingPoint, ::RoundingMode{:FromZero}) = (x>=0 ? ceil(x) : floor(x))
+Base.round(x::DecimalFloatingPoint, ::RoundingMode{:FromZero}) = signbit(x) ? floor(x) : ceil(x)
 
 Base.trunc(::Type{Integer}, x::DecimalFloatingPoint) = trunc(Int, x)
 Base.floor(::Type{Integer}, x::DecimalFloatingPoint) = floor(Int, x)
