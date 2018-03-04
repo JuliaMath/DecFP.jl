@@ -22,7 +22,12 @@ end
 
 export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str
 
-const libbid = joinpath(dirname(@__FILE__), "..", "deps", "libbid$(Sys.WORD_SIZE)")
+# Load libbid from our deps.jl
+const depsjl_path = joinpath(dirname(@__FILE__), "..", "deps", "deps.jl")
+if !isfile(depsjl_path)
+    error("DecFP not installed properly, run Pkg.build(\"DecFP\"), restart Julia and try again")
+end
+include(depsjl_path)
 
 const _buffer = fill(0x00, 1024)
 
