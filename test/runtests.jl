@@ -153,6 +153,13 @@ for T in (Dec32, Dec64, Dec128)
     for Tf in (Float64, Float32, Float16)
         @test xd == Tf(x) == T(Tf(x)) == Tf(xd)
     end
+
+    @test trunc(T(2.7)) === floor(T(2.7)) === round(T(2.7), RoundDown) === round(T(2.7), RoundToZero) === T(2)
+    @test ceil(T(2.3)) === round(T(2.3), RoundUp) === round(T(2.3), RoundFromZero) === T(3)
+    @test round(T(1.5)) === round(T(2.5)) === round(T(1.5), RoundNearest) === round(T(2.5), RoundNearest) === T(2)
+    @test round(T(2.5), RoundNearestTiesAway) === round(T(3.3), RoundNearestTiesAway) === T(3)
+    @test round(T(2.5), RoundNearestTiesUp) === round(T(3.3), RoundNearestTiesUp) === T(3)
+
     for Ti in (Integer,Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64)
         if Ti != Integer
             @test parse(T, "17") == T(Ti(17)) == Ti(17) == Ti(T(17))

@@ -303,9 +303,11 @@ for w in (32,64,128)
         @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
     end
 
-    for (f,c) in ((:gamma,"tgamma"), (:-,"negate"), (:round,"nearbyint"))
+    for (f,c) in ((:gamma,"tgamma"), (:-,"negate"), (:trunc,"round_integral_zero"), (:floor,"round_integral_negative"), (:ceil,"round_integral_positive"), (:round,"nearbyint"))
         @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
     end
+
+    @eval Base.round(x::$BID, ::RoundingMode{:Nearest}) = @xchk(ccall(($(bidsym(w,"round_integral_nearest_even")), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
 
     for (f,c) in ((:(==),"quiet_equal"), (:>,"quiet_greater"), (:<,"quiet_less"), (:(>=), "quiet_greater_equal"), (:(<=), "quiet_less_equal"))
         @eval Base.$f(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,c)), libbid), Cint, ($BID,$BID), x, y) != 0)
@@ -373,6 +375,8 @@ for w in (32,64,128)
     @eval Base.Float16(x::$BID) = convert(Float16, x)
     @eval Base.reinterpret(::Type{$Ti}, x::$BID) = x.x
 end # widths w
+
+Base.round(x::DecimalFloatingPoint, ::RoundingMode{:FromZero}) = signbit(x) ? floor(x) : ceil(x)
 
 Base.trunc(::Type{Integer}, x::DecimalFloatingPoint) = trunc(Int, x)
 Base.floor(::Type{Integer}, x::DecimalFloatingPoint) = floor(Int, x)
