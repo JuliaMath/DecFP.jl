@@ -195,8 +195,8 @@ for T in (Dec32, Dec64, Dec128)
     @test_throws DomainError sqrt(yd)
     @test_throws DomainError acosh(zd)
 
-    # @test ldexp(parse(T, "1"), 3) == 1000
-    # @test exponent(parse(T, "1000")) == 3
+    @test DecFP.ldexp10(parse(T, "1"), 3) == 1000
+    @test DecFP.exponent10(parse(T, "1000")) == 3
     @test sqrt(complex(yd)) ≈ sqrt(complex(y))
 
     @test typeof(xd * pi) == T
