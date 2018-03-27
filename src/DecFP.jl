@@ -150,15 +150,20 @@ for w in (32,64,128)
 
         $BID(x::AbstractString) = parse($BID, x)
 
+        function tostring(x::$BID)
+            # fills global _buffer
+            ccall(($(bidsym(w,"to_string")), libbid), Cvoid, (Ptr{UInt8}, $BID), _buffer, x)
+        end
+
         function Base.show(io::IO, x::$BID)
             isnan(x) && (write(io, "NaN"); return)
             isinf(x) && (write(io, signbit(x) ? "-Inf" : "Inf"); return)
             x == 0 && (write(io, signbit(x) ? "-0.0" : "0.0"); return)
-            ccall(($(bidsym(w,"to_string")), libbid), Cvoid, (Ptr{UInt8}, $BID), _buffer, x)
+            tostring(x)
             if _buffer[1] == UInt8('-')
                 write(io, '-')
             end
-            normalized_exponent = nox(ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,), x))
+            normalized_exponent = exponent10(x)
             lastdigitindex = Compat.findfirst(equalto(UInt8('E')), _buffer) - 1
             lastnonzeroindex = Compat.findlast(!equalto(UInt8('0')), view(_buffer, 1:lastdigitindex))
             if -5 < normalized_exponent < 6
@@ -210,13 +215,12 @@ for w in (32,64,128)
             if n > length(DIGITS) - 1
                 n = length(DIGITS) - 1
             end
-            # rounded = round(x * exp10($BID(n)), RoundNearestTiesAway)
-            rounded = @xchk(ccall(($(bidsym(w,"round_integral_nearest_away")), libbid), $BID, ($BID,), x * exp10($BID(n))), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
+            rounded = round(ldexp10(x, n), RoundNearestTiesAway)
             if rounded == 0
                 DIGITS[1] = UInt8('0')
                 return Int32(1), Int32(1), signbit(x)
             end
-            ccall(($(bidsym(w,"to_string")), libbid), Cvoid, (Ptr{UInt8}, $BID), _buffer, rounded)
+            tostring(rounded)
             trailing_zeros = 0
             i = 2
             while _buffer[i] != UInt8('E')
@@ -258,14 +262,17 @@ for w in (32,64,128)
                 end
                 return Int32(1), Int32(1), signbit(x)
             end
-            normalized_exponent = nox(ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,), x))
-            # rounded = round(x * exp10($BID(n - 1 - normalized_exponent)), RoundNearestTiesAway)
-            rounded = @xchk(ccall(($(bidsym(w,"round_integral_nearest_away")), libbid), $BID, ($BID,), x * exp10($BID(n - 1 - normalized_exponent))), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
-            rounded_exponent = nox(ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,), rounded))
-            ccall(($(bidsym(w,"to_string")), libbid), Cvoid, (Ptr{UInt8}, $BID), _buffer, rounded)
+            normalized_exponent = exponent10(x)
+            rounded = round(ldexp10(x, n - 1 - normalized_exponent), RoundNearestTiesAway)
+            rounded_exponent = exponent10(rounded)
+            tostring(rounded)
             i = 2
             while _buffer[i] != UInt8('E')
                 DIGITS[i - 1] = _buffer[i]
+                i += 1
+            end
+            while i <= n + 1
+                DIGITS[i - 1] = UInt8('0')
                 i += 1
             end
             pt = normalized_exponent + rounded_exponent - n + 2
@@ -287,8 +294,8 @@ for w in (32,64,128)
         Base.eps(x::$BID) = ifelse(isfinite(x), @xchk(nextfloat(x) - x, OverflowError, "$($BID) value overflow", mask=OVERFLOW), $(_parse(T, "NaN")))
 
         # the meaning of the exponent is different than for binary FP: it is 10^n, not 2^n:
-        # Base.exponent(x::$BID) = nox(ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,), x))
-        # Base.ldexp(x::$BID, n::Integer) = nox(ccall(($(bidsym(w,"ldexp")), libbid), $BID, ($BID,Cint), x, n))
+        exponent10(x::$BID) = nox(ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,), x))
+        ldexp10(x::$BID, n::Integer) = nox(ccall(($(bidsym(w,"ldexp")), libbid), $BID, ($BID,Cint), x, n))
     end
 
     for (f,c) in ((:isnan,"isNaN"), (:isinf,"isInf"), (:isfinite,"isFinite"), (:issubnormal,"isSubnormal"))
