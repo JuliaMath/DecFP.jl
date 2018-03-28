@@ -164,8 +164,8 @@ for w in (32,64,128)
                 write(io, '-')
             end
             normalized_exponent = exponent10(x)
-            lastdigitindex = Compat.findfirst(equalto(UInt8('E')), _buffer) - 1
-            lastnonzeroindex = Compat.findlast(!equalto(UInt8('0')), view(_buffer, 1:lastdigitindex))
+            lastdigitindex = Compat.findfirst(isequal(UInt8('E')), _buffer) - 1
+            lastnonzeroindex = Compat.findlast(!isequal(UInt8('0')), view(_buffer, 1:lastdigitindex))
             if -5 < normalized_exponent < 6
                 # %f
                 if normalized_exponent >= 0

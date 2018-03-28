@@ -1,4 +1,4 @@
-using DecFP, Compat.Test, Compat.Printf
+using DecFP, Compat, Compat.Test, Compat.Printf
 
 if !(VERSION < v"0.7.0-DEV.1592")
     using Base.MathConstants
@@ -10,7 +10,7 @@ import DecFP.isnanstr
 @test isnanstr("nan") && isnanstr("  +NAN") && isnanstr("-NaN") && !isnanstr("nano")
 
 for T in (Dec32, Dec64, Dec128)
-    info("TESTING $T ...")
+    Compat.@info "TESTING $T ..."
 
     if T == Dec32
         @test d32"3.2" * d32"4.5" == d32"14.4"
