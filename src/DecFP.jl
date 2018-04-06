@@ -20,7 +20,7 @@ using Compat, Compat.Printf, Compat.Unicode
     export GC
 end
 
-export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str
+export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str, exponent10, ldexp10
 
 # Load libbid from our deps.jl
 const depsjl_path = joinpath(dirname(@__FILE__), "..", "deps", "deps.jl")
@@ -123,6 +123,32 @@ function isnanstr(s::AbstractString)
     (done(s, i) && (c == 'n' || c == 'N')) || return false
     return true
 end
+
+"""
+    exponent10(x::DecFP.DecimalFloatingPoint)
+
+Get the exponent of the base 10 representation of a normalized floating-point number.
+
+# Examples
+```jldoctest
+julia> exponent10(Dec64(123))
+2
+```
+"""
+exponent10(x::DecimalFloatingPoint)
+
+"""
+    ldexp10(x::DecFP.DecimalFloatingPoint, n::Integer)
+
+Compute ``x * 10^n``.
+
+# Examples
+```jldoctest
+julia> ldexp10(Dec64(15), 2)
+1500.0
+```
+"""
+ldexp10(x::DecFP.DecimalFloatingPoint, n::Integer)
 
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
