@@ -182,12 +182,12 @@ for w in (32,64,128)
         end
 
         function Base.show(io::IO, x::$BID)
-            isnan(x) && (write(io, "NaN"); return)
-            isinf(x) && (write(io, signbit(x) ? "-Inf" : "Inf"); return)
-            x == 0 && (write(io, signbit(x) ? "-0.0" : "0.0"); return)
+            isnan(x) && (print(io, "NaN"); return)
+            isinf(x) && (print(io, signbit(x) ? "-Inf" : "Inf"); return)
+            x == 0 && (print(io, signbit(x) ? "-0.0" : "0.0"); return)
             tostring(x)
             if _buffer[1] == UInt8('-')
-                write(io, '-')
+                print(io, '-')
             end
             normalized_exponent = exponent10(x)
             lastdigitindex = Compat.findfirst(isequal(UInt8('E')), _buffer) - 1
@@ -197,29 +197,29 @@ for w in (32,64,128)
                 if normalized_exponent >= 0
                     if normalized_exponent >= lastnonzeroindex - 2
                         GC.@preserve _buffer unsafe_write(io, pointer(_buffer, 2), lastnonzeroindex - 1)
-                        writezeros(io, normalized_exponent - lastnonzeroindex + 2)
-                        write(io, ".0")
+                        printzeros(io, normalized_exponent - lastnonzeroindex + 2)
+                        print(io, ".0")
                     else
                         GC.@preserve _buffer unsafe_write(io, pointer(_buffer, 2), normalized_exponent + 1)
-                        write(io, '.')
+                        print(io, '.')
                         GC.@preserve _buffer unsafe_write(io, pointer(_buffer, normalized_exponent + 3), lastnonzeroindex - normalized_exponent - 2)
                     end
                 else
-                    write(io, "0.")
-                    writezeros(io, -normalized_exponent - 1)
+                    print(io, "0.")
+                    printzeros(io, -normalized_exponent - 1)
                     GC.@preserve _buffer unsafe_write(io, pointer(_buffer, 2), lastnonzeroindex - 1)
                 end
             else
                 # %e
-                write(io, _buffer[2], '.')
+                print(io, Char(_buffer[2]), '.')
                 if lastnonzeroindex == 2
-                    write(io, '0')
+                    print(io, '0')
                 else
                     GC.@preserve _buffer unsafe_write(io, pointer(_buffer, 3), lastnonzeroindex - 2)
                 end
-                write(io, 'e')
+                print(io, 'e')
                 if normalized_exponent < 0
-                    write(io, '-')
+                    print(io, '-')
                     normalized_exponent = -normalized_exponent
                 end
                 b_lb = div(normalized_exponent, 10)
@@ -230,7 +230,7 @@ for w in (32,64,128)
                 r = normalized_exponent
                 while b > 0
                     q, r = divrem(r, b)
-                    write(io, UInt8('0') + (q%UInt8))
+                    print(io, '0' + q)
                     b = div(b, 10)
                 end
             end
@@ -479,9 +479,9 @@ macro d64_str(s, flags...) parse(Dec64, s) end
 macro d128_str(s, flags...) parse(Dec128, s) end
 
 # for zero-padding in printing routines above
-function writezeros(io::IO, n::Int)
+function printzeros(io::IO, n::Int)
     for i = 1:n
-        write(io, UInt8('0'))
+        print(io, '0')
     end
 end
 
