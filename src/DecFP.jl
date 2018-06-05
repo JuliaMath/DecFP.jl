@@ -105,6 +105,8 @@ for w in (32,64,128)
 end
 
 # quickly check whether s begins with "±nan"
+@static if VERSION < v"0.7.0-DEV.5126"
+
 function isnanstr(s::AbstractString)
     i = start(s)
     while !done(s, i)
@@ -122,6 +124,44 @@ function isnanstr(s::AbstractString)
     c, i = next(s, i)
     (done(s, i) && (c == 'n' || c == 'N')) || return false
     return true
+end
+
+else
+
+function isnanstr(s::AbstractString)
+    st = iterate(s)
+    c, i = '\0', 0
+    while st !== nothing
+        c, i = st
+        isspace(c) || break
+        st = iterate(s, i)
+    end
+    st === nothing && return false
+    if c == '+' || c == '-'
+        st = iterate(s, i)
+        st === nothing && return false
+        c, i = st
+    end
+    (c == 'n' || c == 'N') || return false
+    st = iterate(s, i)
+    if st !== nothing
+        c, i = st
+        if c == 'a' || c == 'A'
+            st = iterate(s, i)
+            if st !== nothing
+                c, i = st
+                if c == 'n' || c == 'N'
+                    st = iterate(s, i)
+                    if st === nothing
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
 end
 
 """
@@ -360,7 +400,7 @@ for w in (32,64,128)
     for c in (:π, :e, :ℯ, :γ, :catalan, :φ)
         @eval begin
             Base.convert(::Type{$BID}, ::Irrational{$(QuoteNode(c))}) = $(_parse(T, setprecision(256) do
-                                                                                      string(BigFloat(isdefined(Base, :MathConstants) ? eval(Base.MathConstants, c) : eval(c)))
+                                                                                      string(BigFloat(isdefined(Base, :MathConstants) ? Core.eval(Base.MathConstants, c) : eval(c)))
                                                                                   end))
         end
     end
