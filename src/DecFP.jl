@@ -35,10 +35,20 @@ import Base.promote_rule
 import Base.Grisu.DIGITS
 
 #############################################################################
-# exception handling via global flags
-# (todo: recompile library with GLOBAL_FLAGS=0 for thread-safety)
 
 const flags = Ref{Ptr{Cuint}}() # set to __bid_IDEC_glbflags in __init__
+const rounding = Ref{Ptr{Cuint}}() # global rounding mode
+# global pointers and dicts must be initialized at runtime (via __init__)
+function __init__()
+    global rounding[] = cglobal((:__bid_IDEC_glbround, libbid), Cuint) # rounding mode
+    global flags[] = cglobal((:__bid_IDEC_glbflags, libbid), Cuint) # exception status
+    unsafe_store!(flags[], 0)
+end
+__init__() # make sure flags[] are initialized during precompilation
+
+#############################################################################
+# exception handling via global flags
+# (todo: recompile library with GLOBAL_FLAGS=0 for thread-safety)
 
 # clear exception flags and return x
 function nox(x)
@@ -66,18 +76,9 @@ end
 
 #############################################################################
 
-const rounding = Ref{Ptr{Cuint}}()
-
 # rounding modes, from bid_functions.h
 const rounding_c2j = [RoundNearest, RoundDown, RoundUp, RoundToZero, RoundFromZero]
 const rounding_j2c = Dict{RoundingMode, UInt32}([(rounding_c2j[i], Cuint(i-1)) for i in 1:length(rounding_c2j)])
-
-# global pointers and dicts must be initialized at runtime (via __init__)
-function __init__()
-    global rounding[] = cglobal((:__bid_IDEC_glbround, libbid), Cuint) # rounding mode
-    global flags[] = cglobal((:__bid_IDEC_glbflags, libbid), Cuint) # exception status
-    unsafe_store!(flags[], 0)
-end
 
 # status flags from bid_functions.h:
 const INVALID    = 0x01
