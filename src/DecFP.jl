@@ -20,6 +20,10 @@ using Compat, Compat.Printf, Compat.Unicode
     export GC
 end
 
+@static if VERSION >= v"0.7.0-alpha.69"
+    import SpecialFunctions
+end
+
 export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str, exponent10, ldexp10
 
 # Load libbid from our deps.jl
@@ -372,12 +376,20 @@ for w in (32,64,128)
         @eval Base.$f(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,$BID), x, y))
     end
 
-    for f in (:exp,:log,:sin,:cos,:tan,:asin,:acos,:atan,:sinh,:cosh,:tanh,:asinh,:acosh,:atanh,:log1p,:expm1,:log10,:log2,:exp2,:exp10,:lgamma,:sqrt,:cbrt,:abs)
+    for f in (:exp,:log,:sin,:cos,:tan,:asin,:acos,:atan,:sinh,:cosh,:tanh,:asinh,:acosh,:atanh,:log1p,:expm1,:log10,:log2,:exp2,:exp10,:sqrt,:cbrt,:abs)
         @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
     end
 
     for (f,c) in ((:gamma,"tgamma"), (:-,"negate"), (:trunc,"round_integral_zero"), (:floor,"round_integral_negative"), (:ceil,"round_integral_positive"), (:round,"nearbyint"))
         @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
+    end
+
+    @static if VERSION >= v"0.7.0-alpha.69"
+        @eval SpecialFunctions.lgamma(x::$BID) = @xchk(ccall(($(bidsym(w,:lgamma)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
+        @eval SpecialFunctions.gamma(x::$BID) = @xchk(ccall(($(bidsym(w,:tgamma)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
+    else
+        @eval Base.lgamma(x::$BID) = @xchk(ccall(($(bidsym(w,:lgamma)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
+        @eval Base.gamma(x::$BID) = @xchk(ccall(($(bidsym(w,:tgamma)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
     end
 
     for (r,c) in ((RoundingMode{:Nearest},"round_integral_nearest_even"), (RoundingMode{:NearestTiesAway},"round_integral_nearest_away"), (RoundingMode{:ToZero},"round_integral_zero"), (RoundingMode{:Up},"round_integral_positive"), (RoundingMode{:Down},"round_integral_negative"))
