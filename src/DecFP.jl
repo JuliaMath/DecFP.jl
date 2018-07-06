@@ -380,7 +380,7 @@ for w in (32,64,128)
         @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
     end
 
-    for (f,c) in ((:gamma,"tgamma"), (:-,"negate"), (:trunc,"round_integral_zero"), (:floor,"round_integral_negative"), (:ceil,"round_integral_positive"), (:round,"nearbyint"))
+    for (f,c) in ((:-,"negate"), (:trunc,"round_integral_zero"), (:floor,"round_integral_negative"), (:ceil,"round_integral_positive"), (:round,"nearbyint"))
         @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
     end
 
