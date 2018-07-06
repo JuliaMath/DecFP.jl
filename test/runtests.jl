@@ -135,7 +135,7 @@ for T in (Dec32, Dec64, Dec128)
         @test f(xd,yd) == f(x,y)
     end
 
-    for f in (/,hypot,VERSION>=v"0.7.0-alpha.44"?atan:atan2,^)
+    for f in (/,hypot,atan,^)
         @test f(xd,yd) ≈ f(x,y)
         if f != ^
             @test f(yd,xd) ≈ f(y,x)
