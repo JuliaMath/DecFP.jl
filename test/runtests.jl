@@ -4,6 +4,11 @@ if !(VERSION < v"0.7.0-DEV.1592")
     using Base.MathConstants
 end
 
+if VERSION >= v"0.7.0-alpha.69"
+    using SpecialFunctions
+end
+
+
 @test unsafe_load(DecFP.flags[]) == 0
 
 import DecFP.isnanstr
@@ -130,7 +135,7 @@ for T in (Dec32, Dec64, Dec128)
         @test f(xd,yd) == f(x,y)
     end
 
-    for f in (/,hypot,atan2,^)
+    for f in (/,hypot,atan,^)
         @test f(xd,yd) ≈ f(x,y)
         if f != ^
             @test f(yd,xd) ≈ f(y,x)
