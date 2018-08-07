@@ -413,7 +413,7 @@ for w in (32,64,128)
     for c in (:π, :e, :ℯ, :γ, :catalan, :φ)
         @eval begin
             Base.convert(::Type{$BID}, ::Irrational{$(QuoteNode(c))}) = $(_parse(T, setprecision(256) do
-                                                                                      string(BigFloat(isdefined(Base, :MathConstants) ? Core.eval(Base.MathConstants, c) : eval(c)))
+                                                                                      string(BigFloat(getfield(Compat.MathConstants, c)))
                                                                                   end))
         end
     end
@@ -502,13 +502,18 @@ end
 const pinf128 = _parse(Dec128, "+Inf")
 const minf128 = _parse(Dec128, "-Inf")
 
-for T in (Dec32,Dec64,Dec128)
+for T in (Dec32, Dec64, Dec128)
     @eval begin
         Base.eps(::Type{$T}) = $(_sub(_nextfloat(one(T)), one(T)))
         Base.typemax(::Type{$T}) = $(_parse(T, "+inf"))
         Base.typemin(::Type{$T}) = $(_parse(T, "-inf"))
+@static if isdefined(Base, :floatmax)
+        Base.floatmax(::Type{$T}) = $(_prevfloat(_parse(T, "+inf")))
+        Base.floatmin(::Type{$T}) = $(_nextfloat(zero(T)))
+else
         Base.realmax(::Type{$T}) = $(_prevfloat(_parse(T, "+inf")))
         Base.realmin(::Type{$T}) = $(_nextfloat(zero(T)))
+end
     end
 end
 
