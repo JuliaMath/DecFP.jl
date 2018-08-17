@@ -1,5 +1,5 @@
 # DecFP: IEEE Decimal Floating-point in Julia
-[![Build Status](https://travis-ci.org/JuliaMath/DecFP.jl.svg)](https://travis-ci.org/JuliaMath/DecFP.jl) [![Build status](https://ci.appveyor.com/api/projects/status/si1d6og9wxsu8178?svg=true)](https://ci.appveyor.com/project/StevenGJohnson/decfp-jl) [![Coverage Status](https://coveralls.io/repos/github/JuliaMath/DecFP.jl/badge.svg?branch=master)](https://coveralls.io/github/JuliaMath/DecFP.jl?branch=master)
+[![Travis Status](https://travis-ci.org/JuliaMath/DecFP.jl.svg)](https://travis-ci.org/JuliaMath/DecFP.jl) [![Appveyor status](https://ci.appveyor.com/api/projects/status/6557ypbhxst04t5w/branch/master?svg=true)](https://ci.appveyor.com/project/simonbyrne/decfp-jl/branch/master) [![Coverage Status](https://coveralls.io/repos/github/JuliaMath/DecFP.jl/badge.svg?branch=master)](https://coveralls.io/github/JuliaMath/DecFP.jl?branch=master)
 
 The DecFP package is a Julia wrapper around the [Intel Decimal
 Floating-Point Math
