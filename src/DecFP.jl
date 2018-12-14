@@ -37,7 +37,6 @@ include(depsjl_path)
 const _buffer = fill(0x00, 1024)
 
 import Base.promote_rule
-import Base.Grisu.DIGITS
 
 #############################################################################
 # exception handling via global flags
@@ -195,6 +194,15 @@ julia> ldexp10(Dec64(15), 2)
 """
 ldexp10(x::DecFP.DecimalFloatingPoint, n::Integer)
 
+# for compatibility with julia#29885
+if isdefined(Base.Grisu, :getbuf)
+    getdigitsbuf() = Base.Grisu.getbuf()
+elseif isdefined(Base.Grisu, :DIGITSs)
+    getdigitsbuf() = Base.Grisu.DIGITSs[Threads.threadid()]
+else
+    getdigitsbuf() = Base.Grisu.DIGITS
+end
+
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
     Ti = eval(Symbol(string("UInt",w)))
@@ -282,20 +290,20 @@ for w in (32,64,128)
             return
         end
 
-        function Base.Printf.fix_dec(x::$BID, n::Int)
-            if n > length(DIGITS) - 1
-                n = length(DIGITS) - 1
+        function Base.Printf.fix_dec(x::$BID, n::Int, digits)
+            if n > length(digits) - 1
+                n = length(digits) - 1
             end
             rounded = round(ldexp10(x, n), RoundNearestTiesAway)
             if rounded == 0
-                DIGITS[1] = UInt8('0')
+                digits[1] = UInt8('0')
                 return Int32(1), Int32(1), signbit(x)
             end
             tostring(rounded)
             trailing_zeros = 0
             i = 2
             while _buffer[i] != UInt8('E')
-                DIGITS[i - 1] = _buffer[i]
+                digits[i - 1] = _buffer[i]
                 if _buffer[i] == UInt8('0')
                     trailing_zeros += 1
                 else
@@ -323,13 +331,13 @@ for w in (32,64,128)
             return Int32(len), Int32(pt), neg
         end
 
-        function Base.Printf.ini_dec(x::$BID, n::Int)
-            if n > length(DIGITS) - 1
-                n = length(DIGITS) - 1
+        function Base.Printf.ini_dec(x::$BID, n::Int, digits)
+            if n > length(digits) - 1
+                n = length(digits) - 1
             end
             if x == 0
                 for i = 1:n
-                    DIGITS[i] = UInt8('0')
+                    digits[i] = UInt8('0')
                 end
                 return Int32(1), Int32(1), signbit(x)
             end
@@ -339,17 +347,21 @@ for w in (32,64,128)
             tostring(rounded)
             i = 2
             while _buffer[i] != UInt8('E')
-                DIGITS[i - 1] = _buffer[i]
+                digits[i - 1] = _buffer[i]
                 i += 1
             end
             while i <= n + 1
-                DIGITS[i - 1] = UInt8('0')
+                digits[i - 1] = UInt8('0')
                 i += 1
             end
             pt = normalized_exponent + rounded_exponent - n + 2
             neg = signbit(x)
             return Int32(n), Int32(pt), neg
         end
+
+        # compatibility with julia#30373
+        Base.Printf.fix_dec(x::$BID, n::Int) = Base.Printf.fix_dec(x, n, getdigitsbuf())
+        Base.Printf.ini_dec(x::$BID, n::Int) = Base.Printf.ini_dec(x, n, getdigitsbuf())
 
         Base.fma(x::$BID, y::$BID, z::$BID) = nox(ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID), x, y, z))
         Base.muladd(x::$BID, y::$BID, z::$BID) = fma(x,y,z) # faster than x+y*z
