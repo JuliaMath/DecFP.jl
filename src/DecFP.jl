@@ -282,20 +282,20 @@ for w in (32,64,128)
             return
         end
 
-        function Base.Printf.fix_dec(x::$BID, n::Int)
-            if n > length(DIGITS) - 1
-                n = length(DIGITS) - 1
+        function Base.Printf.fix_dec(x::$BID, n::Int, digits = DIGITS)
+            if n > length(digits) - 1
+                n = length(digts) - 1
             end
             rounded = round(ldexp10(x, n), RoundNearestTiesAway)
             if rounded == 0
-                DIGITS[1] = UInt8('0')
+                digits[1] = UInt8('0')
                 return Int32(1), Int32(1), signbit(x)
             end
             tostring(rounded)
             trailing_zeros = 0
             i = 2
             while _buffer[i] != UInt8('E')
-                DIGITS[i - 1] = _buffer[i]
+                digits[i - 1] = _buffer[i]
                 if _buffer[i] == UInt8('0')
                     trailing_zeros += 1
                 else
@@ -323,13 +323,13 @@ for w in (32,64,128)
             return Int32(len), Int32(pt), neg
         end
 
-        function Base.Printf.ini_dec(x::$BID, n::Int)
-            if n > length(DIGITS) - 1
-                n = length(DIGITS) - 1
+        function Base.Printf.ini_dec(x::$BID, n::Int, digits = DIGITS)
+            if n > length(digits) - 1
+                n = length(digits) - 1
             end
             if x == 0
                 for i = 1:n
-                    DIGITS[i] = UInt8('0')
+                    digits[i] = UInt8('0')
                 end
                 return Int32(1), Int32(1), signbit(x)
             end
@@ -339,11 +339,11 @@ for w in (32,64,128)
             tostring(rounded)
             i = 2
             while _buffer[i] != UInt8('E')
-                DIGITS[i - 1] = _buffer[i]
+                digits[i - 1] = _buffer[i]
                 i += 1
             end
             while i <= n + 1
-                DIGITS[i - 1] = UInt8('0')
+                digits[i - 1] = UInt8('0')
                 i += 1
             end
             pt = normalized_exponent + rounded_exponent - n + 2
