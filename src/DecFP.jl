@@ -102,9 +102,10 @@ for w in (32,64,128)
     Ti = Symbol(string("UInt",w))
     @eval struct $BID <: DecimalFloatingPoint
         x::$Ti
-        $BID(x) = convert($BID, x)
+        $BID(x::Number) = convert($BID, x)
         Base.reinterpret(::Type{$BID}, x::$Ti) = new(x)
     end
+    # fix method ambiguities:
     @eval $BID(x::Rational{T}) where {T} = convert($BID, x)
 end
 

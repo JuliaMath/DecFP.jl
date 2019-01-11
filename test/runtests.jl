@@ -208,6 +208,9 @@ for T in (Dec32, Dec64, Dec128)
 
     @test typeof(xd * pi) == T
     @test typeof((xd+yd*im)*pi) == Complex{T}
+
+    # issue #85
+    @test T(1.5) == T(T(1.5))
 end
 
 @test unsafe_load(DecFP.flags[]) == 0
