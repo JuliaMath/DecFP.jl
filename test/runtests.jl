@@ -219,3 +219,10 @@ end
 @test reinterpret(UInt128, Dec128(1.5)) == 0x303e000000000000000000000000000f
 # issue #38
 @test collect(v for i in 1:1, v in zeros(Dec128, 1)) ==  zeros(Dec128, 1, 1)
+
+@test setrounding(Dec64, RoundDown) do
+    Float64(d64"1e100") < 1e100
+end
+
+@test Float64(d64"1e100") == 1e100
+
