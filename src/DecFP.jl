@@ -129,7 +129,7 @@ Base.Rounding.setrounding_raw(::Type{T}, r::DecFPRoundingMode) where {T<:Decimal
 Base.Rounding.rounding(::Type{T}) where {T<:DecimalFloatingPoint} =
     convert(RoundingMode, Base.Rounding.rounding_raw(T))
 Base.Rounding.setrounding(::Type{T}, r::RoundingMode) where {T<:DecimalFloatingPoint} =
-    Base.Rounding.setrounding_raw(BigFloat, convert(DecFPRoundingMode, r))
+    Base.Rounding.setrounding_raw(T, convert(DecFPRoundingMode, r))
 
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
