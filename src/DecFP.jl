@@ -1,25 +1,6 @@
 
 module DecFP
 
-using Compat, Printf, Compat.Unicode
-
-# When Compat PR #491 is merged, REQUIRE that version and delete this
-# 0.7.0-DEV.3469
-@static if !isdefined(Base, :GC)
-    @eval module GC
-        using Base: gc
-        const enable = Base.gc_enable
-        @static if !isdefined(Base, Symbol("@gc_preserve"))
-            macro preserve(args...)
-                esc(args[end])
-            end
-        else
-            @eval const $(Symbol("@preserve")) = Base.$(Symbol("@gc_preserve"))
-        end
-    end
-    export GC
-end
-
 import SpecialFunctions
 
 export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str, exponent10, ldexp10
@@ -251,8 +232,8 @@ for w in (32,64,128)
                 print(io, '-')
             end
             normalized_exponent = exponent10(x)
-            lastdigitindex = Compat.findfirst(isequal(UInt8('E')), _buffer) - 1
-            lastnonzeroindex = Compat.findlast(!isequal(UInt8('0')), view(_buffer, 1:lastdigitindex))
+            lastdigitindex = findfirst(isequal(UInt8('E')), _buffer) - 1
+            lastnonzeroindex = findlast(!isequal(UInt8('0')), view(_buffer, 1:lastdigitindex))
             if -5 < normalized_exponent < 6
                 # %f
                 if normalized_exponent >= 0
@@ -428,7 +409,7 @@ for w in (32,64,128)
     for c in (:π, :e, :ℯ, :γ, :catalan, :φ)
         @eval begin
             Base.convert(::Type{$BID}, ::Irrational{$(QuoteNode(c))}) = $(_parse(T, setprecision(256) do
-                                                                                      string(BigFloat(getfield(Compat.MathConstants, c)))
+                                                                                      string(BigFloat(getfield(MathConstants, c)))
                                                                                   end))
         end
     end
@@ -522,13 +503,8 @@ for T in (Dec32, Dec64, Dec128)
         Base.eps(::Type{$T}) = $(_sub(_nextfloat(one(T)), one(T)))
         Base.typemax(::Type{$T}) = $(_parse(T, "+inf"))
         Base.typemin(::Type{$T}) = $(_parse(T, "-inf"))
-@static if isdefined(Base, :floatmax)
         Base.floatmax(::Type{$T}) = $(_prevfloat(_parse(T, "+inf")))
         Base.floatmin(::Type{$T}) = $(_nextfloat(zero(T)))
-else
-        Base.realmax(::Type{$T}) = $(_prevfloat(_parse(T, "+inf")))
-        Base.realmin(::Type{$T}) = $(_nextfloat(zero(T)))
-end
     end
 end
 
