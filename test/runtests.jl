@@ -1,16 +1,4 @@
-using DecFP, Compat, Test, Printf
-
-if !(false)
-    using Base.MathConstants
-end
-
-using SpecialFunctions
-
-if !isdefined(Base, :floatmax)
-    floatmax(x) = floatmax(x)
-    floatmin(x) = floatmin(x)
-end
-
+using DecFP, Test, Printf, Base.MathConstants, SpecialFunctions
 
 @test unsafe_load(DecFP.flags[]) == 0
 
@@ -18,7 +6,7 @@ import DecFP.isnanstr
 @test isnanstr("nan") && isnanstr("  +NAN") && isnanstr("-NaN") && !isnanstr("nano")
 
 for T in (Dec32, Dec64, Dec128)
-    Compat.@info "TESTING $T ..."
+    @info "TESTING $T ..."
 
     if T == Dec32
         @test d32"3.2" * d32"4.5" == d32"14.4"
