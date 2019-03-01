@@ -70,15 +70,41 @@ end
 
 #############################################################################
 
-const rounding = Ref{Ptr{Cuint}}()
+@enum DecFPRoundingMode begin
+    DecFPRoundNearest
+    DecFPRoundDown
+    DecFPRoundUp
+    DecFPRoundToZero
+    DecFPRoundFromZero
+end
 
-# rounding modes, from bid_functions.h
-const rounding_c2j = [RoundNearest, RoundDown, RoundUp, RoundToZero, RoundFromZero]
-const rounding_j2c = Dict{RoundingMode, UInt32}([(rounding_c2j[i], Cuint(i-1)) for i in 1:length(rounding_c2j)])
+Base.convert(::Type{DecFPRoundingMode}, ::RoundingMode{:Nearest})  = DecFPRoundNearest
+Base.convert(::Type{DecFPRoundingMode}, ::RoundingMode{:Down})     = DecFPRoundDown
+Base.convert(::Type{DecFPRoundingMode}, ::RoundingMode{:Up})       = DecFPRoundUp
+Base.convert(::Type{DecFPRoundingMode}, ::RoundingMode{:ToZero})   = DecFPRoundToZero
+Base.convert(::Type{DecFPRoundingMode}, ::RoundingMode{:FromZero}) = DecFPRoundFromZero
+
+function Base.convert(::Type{RoundingMode}, r::DecFPRoundingMode)
+    if r == DecFPRoundNearest
+        return RoundNearest
+    elseif r == DecFPRRoundDown
+        return RoundDown
+    elseif r == DecFPRRoundUp
+        return RoundUp
+    elseif r == DecFPRRoundToZero
+        return RoundToZero
+    elseif r == DecFPRRoundFromZero
+        return RoundFromZero
+    else
+        throw(ArgumentError("invalid DecFP rounding mode code: $c"))
+    end
+end
+
+const ROUNDING_PTR = Ref{Ptr{DecFPRoundingMode}}()
 
 # global pointers and dicts must be initialized at runtime (via __init__)
 function __init__()
-    global rounding[] = cglobal((:__bid_IDEC_glbround, libbid), Cuint) # rounding mode
+    global ROUNDING_PTR[] = cglobal((:__bid_IDEC_glbround, libbid), DecFPRoundingMode) # rounding mode
     global flags[] = cglobal((:__bid_IDEC_glbflags, libbid), Cuint) # exception status
     unsafe_store!(flags[], 0)
 end
@@ -94,8 +120,16 @@ const INEXACT    = 0x20
 bidsym(w,s...) = string("__bid", w, "_", s...)
 
 abstract type DecimalFloatingPoint <: AbstractFloat end
-Base.rounding(::Type{T}) where {T<:DecimalFloatingPoint} = rounding_c2j[unsafe_load(rounding[])+1]
-Base.setrounding(::Type{T}, r::RoundingMode) where {T<:DecimalFloatingPoint} = unsafe_store!(rounding[], rounding_j2c[r])
+
+Base.Rounding.rounding_raw(::Type{T}) where {T<:DecimalFloatingPoint} =
+    unsafe_load(ROUNDING_PTR[])
+Base.Rounding.setrounding_raw(::Type{T}, r::DecFPRoundingMode) where {T<:DecimalFloatingPoint} =
+    unsafe_store!(ROUNDING_PTR[],r)
+
+Base.Rounding.rounding(::Type{T}) where {T<:DecimalFloatingPoint} =
+    convert(RoundingMode, Base.Rounding.rounding_raw(T))
+Base.Rounding.setrounding(::Type{T}, r::RoundingMode) where {T<:DecimalFloatingPoint} =
+    Base.Rounding.setrounding_raw(T, convert(DecFPRoundingMode, r))
 
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
