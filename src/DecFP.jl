@@ -1,7 +1,6 @@
 
 module DecFP
-
-import SpecialFunctions
+using Requires
 
 export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str, exponent10, ldexp10
 
@@ -82,6 +81,16 @@ const ROUNDING_PTR = Ref{Ptr{DecFPRoundingMode}}()
 
 # global pointers and dicts must be initialized at runtime (via __init__)
 function __init__()
+    @require SpecialFunctions="276daf66-3868-5448-9aa4-cd146d93841b" begin
+        using .SpecialFunctions
+
+        for w in (32,64,128)
+            BID = Symbol(string("Dec",w))
+            @eval SpecialFunctions.lgamma(x::$BID) = @xchk(ccall(($(bidsym(w,:lgamma)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
+            @eval SpecialFunctions.gamma(x::$BID) = @xchk(ccall(($(bidsym(w,:tgamma)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
+        end
+    end
+    
     global ROUNDING_PTR[] = cglobal((:__bid_IDEC_glbround, libbid), DecFPRoundingMode) # rounding mode
     global flags[] = cglobal((:__bid_IDEC_glbflags, libbid), Cuint) # exception status
     unsafe_store!(flags[], 0)
@@ -385,9 +394,6 @@ for w in (32,64,128)
     for (f,c) in ((:-,"negate"), (:trunc,"round_integral_zero"), (:floor,"round_integral_negative"), (:ceil,"round_integral_positive"), (:round,"nearbyint"))
         @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
     end
-
-    @eval SpecialFunctions.lgamma(x::$BID) = @xchk(ccall(($(bidsym(w,:lgamma)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
-    @eval SpecialFunctions.gamma(x::$BID) = @xchk(ccall(($(bidsym(w,:tgamma)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
 
     for (r,c) in ((RoundingMode{:Nearest},"round_integral_nearest_even"), (RoundingMode{:NearestTiesAway},"round_integral_nearest_away"), (RoundingMode{:ToZero},"round_integral_zero"), (RoundingMode{:Up},"round_integral_positive"), (RoundingMode{:Down},"round_integral_negative"))
         @eval Base.round(x::$BID, ::$r) = @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
