@@ -1,18 +1,4 @@
-using DecFP, Compat, Compat.Test, Compat.Printf
-
-if !(VERSION < v"0.7.0-DEV.1592")
-    using Base.MathConstants
-end
-
-if VERSION >= v"0.7.0-alpha.69"
-    using SpecialFunctions
-end
-
-if !isdefined(Base, :floatmax)
-    floatmax(x) = realmax(x)
-    floatmin(x) = realmin(x)
-end
-
+using DecFP, Test, Printf, Base.MathConstants, SpecialFunctions
 
 @test unsafe_load(DecFP.flags[]) == 0
 
@@ -20,7 +6,7 @@ import DecFP.isnanstr
 @test isnanstr("nan") && isnanstr("  +NAN") && isnanstr("-NaN") && !isnanstr("nano")
 
 for T in (Dec32, Dec64, Dec128)
-    Compat.@info "TESTING $T ..."
+    @info "TESTING $T ..."
 
     if T == Dec32
         @test d32"3.2" * d32"4.5" == d32"14.4"

@@ -1,29 +1,7 @@
-VERSION < v"0.7.0-beta2.199" && __precompile__()
 
 module DecFP
 
-using Compat, Compat.Printf, Compat.Unicode
-
-# When Compat PR #491 is merged, REQUIRE that version and delete this
-# 0.7.0-DEV.3469
-@static if !isdefined(Base, :GC)
-    @eval module GC
-        using Base: gc
-        const enable = Base.gc_enable
-        @static if !isdefined(Base, Symbol("@gc_preserve"))
-            macro preserve(args...)
-                esc(args[end])
-            end
-        else
-            @eval const $(Symbol("@preserve")) = Base.$(Symbol("@gc_preserve"))
-        end
-    end
-    export GC
-end
-
-@static if VERSION >= v"0.7.0-alpha.69"
-    import SpecialFunctions
-end
+import SpecialFunctions
 
 export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str, exponent10, ldexp10
 
@@ -144,29 +122,6 @@ for w in (32,64,128)
 end
 
 # quickly check whether s begins with "±nan"
-@static if VERSION < v"0.7.0-DEV.5126"
-
-function isnanstr(s::AbstractString)
-    i = start(s)
-    while !done(s, i)
-        c, i = next(s, i)
-        isspace(c) || break
-    end
-    done(s, i) && return false
-    if (c == '+' || c == '-')
-        c, i = next(s, i)
-        done(s, i) && return false
-    end
-    (c == 'n' || c == 'N') || return false
-    c, i = next(s, i)
-    (!done(s, i) && (c == 'a' || c == 'A')) || return false
-    c, i = next(s, i)
-    (done(s, i) && (c == 'n' || c == 'N')) || return false
-    return true
-end
-
-else
-
 function isnanstr(s::AbstractString)
     st = iterate(s)
     c, i = '\0', 0
@@ -201,7 +156,6 @@ function isnanstr(s::AbstractString)
     return false
 end
 
-end
 
 """
     exponent10(x::DecFP.DecimalFloatingPoint)
@@ -278,8 +232,8 @@ for w in (32,64,128)
                 print(io, '-')
             end
             normalized_exponent = exponent10(x)
-            lastdigitindex = Compat.findfirst(isequal(UInt8('E')), _buffer) - 1
-            lastnonzeroindex = Compat.findlast(!isequal(UInt8('0')), view(_buffer, 1:lastdigitindex))
+            lastdigitindex = findfirst(isequal(UInt8('E')), _buffer) - 1
+            lastnonzeroindex = findlast(!isequal(UInt8('0')), view(_buffer, 1:lastdigitindex))
             if -5 < normalized_exponent < 6
                 # %f
                 if normalized_exponent >= 0
@@ -420,7 +374,7 @@ for w in (32,64,128)
         @eval Base.$f(x::$BID) = ccall(($(bidsym(w,c)), libbid), Cint, ($BID,), x) != 0
     end
 
-    for (f,c) in ((:+,"add"), (:-,"sub"), (:*,"mul"), (:/, "div"), (:hypot,"hypot"), (VERSION >= v"0.7.0-alpha.44" ? :atan : :atan2,"atan2"), (:^,"pow"), (:copysign,"copySign"))
+    for (f,c) in ((:+,"add"), (:-,"sub"), (:*,"mul"), (:/, "div"), (:hypot,"hypot"), (:atan,"atan2"), (:^,"pow"), (:copysign,"copySign"))
         @eval Base.$f(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,$BID), x, y))
     end
 
@@ -432,13 +386,8 @@ for w in (32,64,128)
         @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
     end
 
-    @static if VERSION >= v"0.7.0-alpha.69"
-        @eval SpecialFunctions.lgamma(x::$BID) = @xchk(ccall(($(bidsym(w,:lgamma)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
-        @eval SpecialFunctions.gamma(x::$BID) = @xchk(ccall(($(bidsym(w,:tgamma)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
-    else
-        @eval Base.lgamma(x::$BID) = @xchk(ccall(($(bidsym(w,:lgamma)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
-        @eval Base.gamma(x::$BID) = @xchk(ccall(($(bidsym(w,:tgamma)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
-    end
+    @eval SpecialFunctions.lgamma(x::$BID) = @xchk(ccall(($(bidsym(w,:lgamma)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
+    @eval SpecialFunctions.gamma(x::$BID) = @xchk(ccall(($(bidsym(w,:tgamma)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
 
     for (r,c) in ((RoundingMode{:Nearest},"round_integral_nearest_even"), (RoundingMode{:NearestTiesAway},"round_integral_nearest_away"), (RoundingMode{:ToZero},"round_integral_zero"), (RoundingMode{:Up},"round_integral_positive"), (RoundingMode{:Down},"round_integral_negative"))
         @eval Base.round(x::$BID, ::$r) = @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
@@ -460,7 +409,7 @@ for w in (32,64,128)
     for c in (:π, :e, :ℯ, :γ, :catalan, :φ)
         @eval begin
             Base.convert(::Type{$BID}, ::Irrational{$(QuoteNode(c))}) = $(_parse(T, setprecision(256) do
-                                                                                      string(BigFloat(getfield(Compat.MathConstants, c)))
+                                                                                      string(BigFloat(getfield(MathConstants, c)))
                                                                                   end))
         end
     end
@@ -554,13 +503,8 @@ for T in (Dec32, Dec64, Dec128)
         Base.eps(::Type{$T}) = $(_sub(_nextfloat(one(T)), one(T)))
         Base.typemax(::Type{$T}) = $(_parse(T, "+inf"))
         Base.typemin(::Type{$T}) = $(_parse(T, "-inf"))
-@static if isdefined(Base, :floatmax)
         Base.floatmax(::Type{$T}) = $(_prevfloat(_parse(T, "+inf")))
         Base.floatmin(::Type{$T}) = $(_nextfloat(zero(T)))
-else
-        Base.realmax(::Type{$T}) = $(_prevfloat(_parse(T, "+inf")))
-        Base.realmin(::Type{$T}) = $(_nextfloat(zero(T)))
-end
     end
 end
 
