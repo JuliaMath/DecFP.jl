@@ -212,3 +212,5 @@ end
 
 @test Float64(d64"1e100") == 1e100
 
+# issue #47
+@test exp10(Dec128(0)) == 1
