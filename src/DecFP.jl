@@ -112,11 +112,8 @@ Base.Rounding.setrounding(::Type{T}, r::RoundingMode) where {T<:DecimalFloatingP
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
     Ti = Symbol(string("UInt",w))
-    @eval struct $BID <: DecimalFloatingPoint
-        x::$Ti
-        $BID(x::Number) = convert($BID, x)
-        Base.reinterpret(::Type{$BID}, x::$Ti) = new(x)
-    end
+    @eval primitive type $BID <: DecimalFloatingPoint $w end
+    $BID(x::Number) = convert($BID, x)
 
     @eval function $BID(x::Real, mode::RoundingMode)
         setrounding($BID, mode) do
@@ -494,7 +491,7 @@ for w in (32,64,128)
         Base.one(::Union{Type{$BID},$BID}) = $(_parse(T, "1"))
         Base.zero(::Union{Type{$BID},$BID}) = $(_parse(T, "0"))
 
-        Base.signbit(x::$BID) = $(zero(Ti)) != $(Ti(1) << (Ti(w - 1))) & x.x
+        Base.signbit(x::$BID) = $(zero(Ti)) != $(Ti(1) << (Ti(w - 1))) & reinterpret($Ti, x)
         Base.sign(x::$BID) = ifelse(isnan(x) || iszero(x), x, ifelse(signbit(x), $(_parse(T, "-1")), $(_parse(T, "1"))))
 
         Base.nextfloat(x::$BID) = nox(_nextfloat(x))
@@ -616,10 +613,9 @@ for w in (32,64,128)
         end
     end
 
-    @eval Base.bswap(x::$BID) = reinterpret($BID, bswap(x.x))
+    @eval Base.bswap(x::$BID) = reinterpret($BID, bswap(reinterpret($Ti, x)))
     @eval Base.convert(::Type{Float16}, x::$BID) = convert(Float16, convert(Float32, x))
     @eval Base.Float16(x::$BID) = convert(Float16, x)
-    @eval Base.reinterpret(::Type{$Ti}, x::$BID) = x.x
 end # widths w
 
 Base.round(x::DecimalFloatingPoint, ::RoundingMode{:FromZero}) = signbit(x) ? floor(x) : ceil(x)
