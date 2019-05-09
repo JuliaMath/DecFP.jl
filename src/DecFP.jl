@@ -494,6 +494,13 @@ function Base.sqrt(z::Complex{T}) where {T<:DecimalFloatingPoint}
     Complex(ξ,η)
 end
 
+# see issue #92 — the fallback power_by_squaring fails for p < 0, and this is more accurate:
+Base.:^(x::DecimalFloatingPoint, p::Integer) = x^oftype(x, p)
+@inline Base.literal_pow(::typeof(^), x::DecimalFloatingPoint, ::Val{0}) = one(x)
+@inline Base.literal_pow(::typeof(^), x::DecimalFloatingPoint, ::Val{1}) = x
+@inline Base.literal_pow(::typeof(^), x::DecimalFloatingPoint, ::Val{2}) = x*x
+@inline Base.literal_pow(::typeof(^), x::DecimalFloatingPoint, ::Val{3}) = x*x*x
+
 # used for next/prevfloat:
 const pinf128 = _parse(Dec128, "+Inf")
 const minf128 = _parse(Dec128, "-Inf")
