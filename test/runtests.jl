@@ -193,7 +193,7 @@ for T in (Dec32, Dec64, Dec128)
     TI = eval(Symbol(string("UInt", sizeof(T)*8)))
     @test bswap(xd) == reinterpret(T, bswap(reinterpret(TI, xd)))
 
-    @test_throws InexactError parse(T, "1e10000")
+    @test parse(T, "1e10000") == T(Inf)
     @test_throws DomainError asin(xd)
     @test_throws DomainError sqrt(yd)
     @test_throws DomainError acosh(zd)
@@ -222,3 +222,6 @@ end
 
 @test Float64(d64"1e100") == 1e100
 
+# issue #93
+@test parse(Dec64, "3935767060.093896713") == d64"3.935767060093897e9" ==
+      Dec64(d128"3935767060.093896713")

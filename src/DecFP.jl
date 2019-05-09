@@ -39,9 +39,13 @@ macro xchk(x, exc, args...)
     end
     quote
         ret = $(esc(x))
-        f = unsafe_load(flags[])
-        unsafe_store!(flags[], 0)
-        f & $mask != 0 && throw($exc($(map(esc,args)...)))
+        if $exc === nothing
+            unsafe_store!(flags[], 0)
+        else
+            f = unsafe_load(flags[])
+            unsafe_store!(flags[], 0)
+            f & $mask != 0 && throw($exc($(map(esc,args)...)))
+        end
         ret
     end
 end
@@ -213,7 +217,7 @@ for w in (32,64,128)
             if isnan(x) && !isnanstr(s)
                 throw(ArgumentError("invalid number format $s"))
             end
-            return @xchk(x, InexactError, :parse, $BID, s)
+            return @xchk(x, nothing)
         end
 
         $BID(x::AbstractString) = parse($BID, x)
@@ -422,7 +426,7 @@ for w in (32,64,128)
             @eval promote_rule(::Type{$BID}, ::Type{$BID′}) = $BID
         end
         if w != w′
-            @eval Base.convert(::Type{$BID}, x::$BID′) = @xchk(ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,), x), InexactError, :convert, $BID, x, mask=INEXACT)
+            @eval Base.convert(::Type{$BID}, x::$BID′) = @xchk(ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,), x), nothing)
         end
 
         # promote binary*decimal -> decimal, for consistency with other operations above
