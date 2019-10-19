@@ -1,5 +1,6 @@
 *.jl.cov
 *.jl.mem
+Manifest.toml
 deps/IntelRDFPMathLib*
 deps/installed_vers
 deps/libbid*.*
