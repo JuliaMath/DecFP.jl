@@ -1,7 +1,7 @@
 
 module DecFP
 
-import SpecialFunctions
+import Printf, SpecialFunctions
 
 export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str, exponent10, ldexp10
 
@@ -283,7 +283,7 @@ for w in (32,64,128)
             return
         end
 
-        function Base.Printf.fix_dec(x::$BID, n::Int, digits)
+        function Printf.Printf.fix_dec(x::$BID, n::Int, digits)
             if n > length(digits) - 1
                 n = length(digits) - 1
             end
@@ -324,7 +324,7 @@ for w in (32,64,128)
             return Int32(len), Int32(pt), neg
         end
 
-        function Base.Printf.ini_dec(x::$BID, n::Int, digits)
+        function Printf.Printf.ini_dec(x::$BID, n::Int, digits)
             if n > length(digits) - 1
                 n = length(digits) - 1
             end
@@ -353,8 +353,8 @@ for w in (32,64,128)
         end
 
         # compatibility with julia#30373
-        Base.Printf.fix_dec(x::$BID, n::Int) = Base.Printf.fix_dec(x, n, getdigitsbuf())
-        Base.Printf.ini_dec(x::$BID, n::Int) = Base.Printf.ini_dec(x, n, getdigitsbuf())
+        Printf.Printf.fix_dec(x::$BID, n::Int) = Printf.Printf.fix_dec(x, n, getdigitsbuf())
+        Printf.Printf.ini_dec(x::$BID, n::Int) = Printf.Printf.ini_dec(x, n, getdigitsbuf())
 
         Base.fma(x::$BID, y::$BID, z::$BID) = nox(ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID), x, y, z))
         Base.muladd(x::$BID, y::$BID, z::$BID) = fma(x,y,z) # faster than x+y*z
