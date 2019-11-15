@@ -1,6 +1,6 @@
 name = "DecFP"
 uuid = "55939f99-70c6-5e9b-8bb0-5071ed7d61fd"
-version = "0.4.8"
+version = "0.4.9"
 
 [deps]
 BinaryProvider = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
@@ -9,7 +9,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [compat]
-julia = "≥ 0.7.0"
+julia = "0.7, 1"
 
 [extras]
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
