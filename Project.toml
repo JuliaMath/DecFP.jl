@@ -9,6 +9,8 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [compat]
+BinaryProvider = "0.5"
+SpecialFunctions = "0.7, 0.8"
 julia = "0.7, 1"
 
 [extras]
