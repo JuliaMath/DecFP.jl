@@ -10,7 +10,7 @@ SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [compat]
 BinaryProvider = "0.5"
-SpecialFunctions = "0.7, 0.8"
+SpecialFunctions = "0.7, 0.8, 0.9"
 julia = "0.7, 1"
 
 [extras]
