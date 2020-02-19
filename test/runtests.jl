@@ -190,6 +190,14 @@ for T in (Dec32, Dec64, Dec128)
         end
     end
 
+    @test rounding(T) == RoundNearest
+    for mode in (RoundNearest, RoundToZero, RoundFromZero, RoundUp, RoundDown)
+        setrounding(T, mode) do
+            @test rounding(T) == mode
+        end
+    end
+    @test rounding(T) == RoundNearest
+
     TI = eval(Symbol(string("UInt", sizeof(T)*8)))
     @test bswap(xd) == reinterpret(T, bswap(reinterpret(TI, xd)))
 
