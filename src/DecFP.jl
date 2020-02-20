@@ -69,13 +69,13 @@ Base.convert(::Type{DecFPRoundingMode}, ::RoundingMode{:FromZero}) = DecFPRoundF
 function Base.convert(::Type{RoundingMode}, r::DecFPRoundingMode)
     if r == DecFPRoundNearest
         return RoundNearest
-    elseif r == DecFPRRoundDown
+    elseif r == DecFPRoundDown
         return RoundDown
-    elseif r == DecFPRRoundUp
+    elseif r == DecFPRoundUp
         return RoundUp
-    elseif r == DecFPRRoundToZero
+    elseif r == DecFPRoundToZero
         return RoundToZero
-    elseif r == DecFPRRoundFromZero
+    elseif r == DecFPRoundFromZero
         return RoundFromZero
     else
         throw(ArgumentError("invalid DecFP rounding mode code: $c"))
