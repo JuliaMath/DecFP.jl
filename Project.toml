@@ -3,14 +3,12 @@ uuid = "55939f99-70c6-5e9b-8bb0-5071ed7d61fd"
 version = "0.4.10"
 
 [deps]
-BinaryProvider = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
 DecFP_jll = "47200ebd-12ce-5be5-abb7-8e082af23329"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [compat]
-BinaryProvider = "0.5"
 SpecialFunctions = "0.7, 0.8, 0.9"
 julia = "1.3"
 
