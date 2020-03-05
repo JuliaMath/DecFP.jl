@@ -7,13 +7,13 @@ import Printf, SpecialFunctions
 
 export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str, exponent10, ldexp10
 
-const _buffer = Vector{Vector{UInt8}}(undef, Threads.nthreads())
+const _buffer = Vector{Vector{UInt8}}()
 
 import Base.promote_rule
 
 # flags isn't defined until __init__ runs
 const _flags = [0x00000000]
-const flags = Vector{Vector{Cuint}}(undef, Threads.nthreads())
+const flags = Vector{Vector{Cuint}}()
 
 # clear exception flags and return x
 function nox(x)
@@ -75,10 +75,13 @@ function Base.convert(::Type{RoundingMode}, r::DecFPRoundingMode)
     end
 end
 
-const roundingmode = Vector{DecFPRoundingMode}(undef, Threads.nthreads())
+const roundingmode = Vector{DecFPRoundingMode}()
 
 # global vectors must be initialized at runtime (via __init__)
 function __init__()
+    resize!(_buffer, Threads.nthreads())
+    resize!(flags, Threads.nthreads())
+    resize!(roundingmode, Threads.nthreads())
     for i = 1:Threads.nthreads()
         global _buffer[i] = fill(0x00, 1024)
         global flags[i] = [0x00000000]
