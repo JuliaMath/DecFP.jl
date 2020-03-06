@@ -75,7 +75,7 @@ function Base.convert(::Type{RoundingMode}, r::DecFPRoundingMode)
     end
 end
 
-const roundingmode = Vector{DecFPRoundingMode}()
+const roundingmode = DecFPRoundingMode[]
 
 # global vectors must be initialized at runtime (via __init__)
 function __init__()
