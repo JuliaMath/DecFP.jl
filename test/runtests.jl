@@ -1,6 +1,6 @@
 using DecFP, Test, Printf, Base.MathConstants, SpecialFunctions
 
-@test DecFP.flags[Threads.threadid()][1] == 0
+@test DecFP.flags[Threads.threadid()] == 0
 
 import DecFP.isnanstr
 @test isnanstr("nan") && isnanstr("  +NAN") && isnanstr("-NaN") && !isnanstr("nano")
@@ -240,7 +240,7 @@ for T in (Dec32, Dec64, Dec128)
     @test T(1.5) == T(T(1.5))
 end
 
-@test DecFP.flags[Threads.threadid()][1] == 0
+@test DecFP.flags[Threads.threadid()] == 0
 
 # issue #37
 @test reinterpret(UInt128, Dec128(1.5)) == 0x303e000000000000000000000000000f
