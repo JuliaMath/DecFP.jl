@@ -515,9 +515,12 @@ for T in (Dec32, Dec64, Dec128)
         Base.typemax(::Type{$T}) = $(_parse(T, "+inf"))
         Base.typemin(::Type{$T}) = $(_parse(T, "-inf"))
         Base.floatmax(::Type{$T}) = $(_prevfloat(_parse(T, "+inf")))
-        Base.floatmin(::Type{$T}) = $(_nextfloat(zero(T)))
     end
 end
+
+Base.floatmin(::Type{Dec32}) = reinterpret(Dec32, 0x03000001) # Dec32("1.0e-95")
+Base.floatmin(::Type{Dec64}) = reinterpret(Dec64, 0x01e0000000000001) # Dec64("1.0e-383")
+Base.floatmin(::Type{Dec128}) = reinterpret(Dec128, 0x00420000000000000000000000000001) # Dec128("1.0e-6143")
 
 Base.maxintfloat(::Type{Dec32}) = reinterpret(Dec32, 0x36000001) # Dec32("1e7")
 Base.maxintfloat(::Type{Dec64}) = reinterpret(Dec64, 0x33c0000000000001) # Dec64("1e16")
