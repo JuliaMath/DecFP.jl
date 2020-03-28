@@ -4,7 +4,6 @@ version = "0.4.10"
 
 [deps]
 DecFP_jll = "47200ebd-12ce-5be5-abb7-8e082af23329"
-Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 

@@ -204,7 +204,7 @@ for w in (32,64,128)
             ccall(($(bidsym(w,"from_string")), libbid), $BID, (Ptr{UInt8},Cuint,Ref{Cuint}), s, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid()))
         _nextfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, pinf128, RefArray(flags, Threads.threadid()))
         _prevfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, minf128, RefArray(flags, Threads.threadid()))
-        _sub(x::$BID, y::$BID) = ccall(($(bidsym(w,"sub")), libbid), $BID, ($BID,$BID,Cuint,Ref{Cuint}), x, y, DecFPRoundNearest, RefArray(flags, Threads.threadid()))
+        _sub(x::$BID, y::$BID) = ccall(($(bidsym(w,"sub")), libbid), $BID, ($BID,$BID,Cuint,Ref{Cuint}), x, y, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid()))
     end
 
     @eval begin
@@ -228,36 +228,37 @@ for w in (32,64,128)
             isinf(x) && (print(io, signbit(x) ? "-Inf" : "Inf"); return)
             x == 0 && (print(io, signbit(x) ? "-0.0" : "0.0"); return)
             tostring(x)
-            if _buffer[Threads.threadid()][1] == UInt8('-')
+            buffer = _buffer[Threads.threadid()]
+            if buffer[1] == UInt8('-')
                 print(io, '-')
             end
             normalized_exponent = exponent10(x)
-            lastdigitindex = findfirst(isequal(UInt8('E')), _buffer[Threads.threadid()]) - 1
-            lastnonzeroindex = findlast(!isequal(UInt8('0')), view(_buffer[Threads.threadid()], 1:lastdigitindex))
+            lastdigitindex = findfirst(isequal(UInt8('E')), buffer) - 1
+            lastnonzeroindex = findlast(!isequal(UInt8('0')), view(buffer, 1:lastdigitindex))
             if -5 < normalized_exponent < 6
                 # %f
                 if normalized_exponent >= 0
                     if normalized_exponent >= lastnonzeroindex - 2
-                        GC.@preserve _buffer unsafe_write(io, pointer(_buffer[Threads.threadid()], 2), lastnonzeroindex - 1)
+                        GC.@preserve buffer unsafe_write(io, pointer(buffer, 2), lastnonzeroindex - 1)
                         printzeros(io, normalized_exponent - lastnonzeroindex + 2)
                         print(io, ".0")
                     else
-                        GC.@preserve _buffer unsafe_write(io, pointer(_buffer[Threads.threadid()], 2), normalized_exponent + 1)
+                        GC.@preserve buffer unsafe_write(io, pointer(buffer, 2), normalized_exponent + 1)
                         print(io, '.')
-                        GC.@preserve _buffer unsafe_write(io, pointer(_buffer[Threads.threadid()], normalized_exponent + 3), lastnonzeroindex - normalized_exponent - 2)
+                        GC.@preserve buffer unsafe_write(io, pointer(buffer, normalized_exponent + 3), lastnonzeroindex - normalized_exponent - 2)
                     end
                 else
                     print(io, "0.")
                     printzeros(io, -normalized_exponent - 1)
-                    GC.@preserve _buffer unsafe_write(io, pointer(_buffer[Threads.threadid()], 2), lastnonzeroindex - 1)
+                    GC.@preserve buffer unsafe_write(io, pointer(buffer, 2), lastnonzeroindex - 1)
                 end
             else
                 # %e
-                print(io, Char(_buffer[Threads.threadid()][2]), '.')
+                print(io, Char(buffer[2]), '.')
                 if lastnonzeroindex == 2
                     print(io, '0')
                 else
-                    GC.@preserve _buffer unsafe_write(io, pointer(_buffer[Threads.threadid()], 3), lastnonzeroindex - 2)
+                    GC.@preserve buffer unsafe_write(io, pointer(buffer, 3), lastnonzeroindex - 2)
                 end
                 print(io, 'e')
                 if normalized_exponent < 0
@@ -289,11 +290,12 @@ for w in (32,64,128)
                 return Int32(1), Int32(1), signbit(x)
             end
             tostring(rounded)
+            buffer = _buffer[Threads.threadid()]
             trailing_zeros = 0
             i = 2
-            while _buffer[Threads.threadid()][i] != UInt8('E')
-                digits[i - 1] = _buffer[Threads.threadid()][i]
-                if _buffer[Threads.threadid()][i] == UInt8('0')
+            while buffer[i] != UInt8('E')
+                digits[i - 1] = buffer[i]
+                if buffer[i] == UInt8('0')
                     trailing_zeros += 1
                 else
                     trailing_zeros = 0
@@ -303,15 +305,15 @@ for w in (32,64,128)
             ndigits = i - 2
             len = ndigits - trailing_zeros
             i += 1
-            if _buffer[Threads.threadid()][i] == UInt8('+')
+            if buffer[i] == UInt8('+')
                 expsign = +1
-            elseif _buffer[Threads.threadid()][i] == UInt8('-')
+            elseif buffer[i] == UInt8('-')
                 expsign = -1
             end
             exponent = 0
             i += 1
-            while _buffer[Threads.threadid()][i] != 0x00
-                exponent = exponent * 10 + _buffer[Threads.threadid()][i] - UInt8('0')
+            while buffer[i] != 0x00
+                exponent = exponent * 10 + buffer[i] - UInt8('0')
                 i += 1
             end
             exponent *= expsign
@@ -334,9 +336,10 @@ for w in (32,64,128)
             rounded = round(ldexp10(x, n - 1 - normalized_exponent), RoundNearestTiesAway)
             rounded_exponent = exponent10(rounded)
             tostring(rounded)
+            buffer = _buffer[Threads.threadid()]
             i = 2
-            while _buffer[Threads.threadid()][i] != UInt8('E')
-                digits[i - 1] = _buffer[Threads.threadid()][i]
+            while buffer[i] != UInt8('E')
+                digits[i - 1] = buffer[i]
                 i += 1
             end
             while i <= n + 1
