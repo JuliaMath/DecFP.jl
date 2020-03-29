@@ -1,12 +1,28 @@
 using DecFP, Test, Printf, Base.MathConstants, SpecialFunctions
 
-@test unsafe_load(DecFP.flags[]) == 0
+@test DecFP.flags[Threads.threadid()] == 0
 
 import DecFP.isnanstr
 @test isnanstr("nan") && isnanstr("  +NAN") && isnanstr("-NaN") && !isnanstr("nano")
 
+function testthreads(T, i, mode)
+    @test @sprintf("%.0f", T(i)) == string(i)
+    @test rounding(T) == RoundNearest
+    setrounding(T, mode) do
+        @test rounding(T) == mode
+        if mode in (RoundNearest, RoundToZero, RoundDown)
+            @test T(1) + eps(T(1)) / 2 == T(1)
+        else
+            @test T(1) + eps(T(1)) / 2 == T(1) + eps(T(1))
+        end
+    end
+    @test rounding(T) == RoundNearest
+    @test_throws InexactError convert(Int64, T("1.5"))
+    @test_throws DomainError sqrt(T(-2))
+end
+
 for T in (Dec32, Dec64, Dec128)
-    @info "TESTING $T ..."
+    @info "TESTING $T    nthreads = $(Threads.nthreads()) ..."
 
     if T == Dec32
         @test d32"3.2" * d32"4.5" == d32"14.4"
@@ -141,6 +157,9 @@ for T in (Dec32, Dec64, Dec128)
         @test f(T(v)) ≈ f(v)
     end
 
+    # issue #47
+    @test exp10(T(0)) == T(1)
+
     for c in (π, e, γ, catalan, φ)
         @test T(c) ≈ Float64(c)
     end
@@ -215,11 +234,15 @@ for T in (Dec32, Dec64, Dec128)
     @test typeof(xd * pi) == T
     @test typeof((xd+yd*im)*pi) == Complex{T}
 
+    Threads.@threads for (i, mode) in collect(enumerate((RoundNearest, RoundToZero, RoundFromZero, RoundUp, RoundDown)))
+        testthreads(T, i, mode)
+    end
+
     # issue #85
     @test T(1.5) == T(T(1.5))
 end
 
-@test unsafe_load(DecFP.flags[]) == 0
+@test DecFP.flags[Threads.threadid()] == 0
 
 # issue #37
 @test reinterpret(UInt128, Dec128(1.5)) == 0x303e000000000000000000000000000f
