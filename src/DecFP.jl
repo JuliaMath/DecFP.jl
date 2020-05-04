@@ -387,6 +387,17 @@ for w in (32,64,128)
     end
     @eval Base.abs(x::$BID) = @xchk(ccall(($(bidsym(w,"abs")), libbid), $BID, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
 
+    @eval Base.rem(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,"fmod")), libbid), $BID, ($BID,$BID,Ref{Cuint}), x, y, RefArray(flags, Threads.threadid())))
+    @eval Base.rem(x::$BID, y::$BID, ::RoundingMode{:Nearest}) = nox(ccall(($(bidsym(w,"rem")), libbid), $BID, ($BID,$BID,Ref{Cuint}), x, y, RefArray(flags, Threads.threadid())))
+
+    @eval begin
+        function Base.modf(x::$BID)
+            ipart = Ref{$BID}()
+            fpart = nox(ccall(($(bidsym(w,"modf")), libbid), $BID, ($BID,Ref{$BID},Ref{Cuint}), x, ipart, RefArray(flags, Threads.threadid())))
+            fpart, ipart[]
+        end
+    end
+
     for (f,c) in ((:trunc,"round_integral_zero"), (:floor,"round_integral_negative"), (:ceil,"round_integral_positive"))
         @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
     end
