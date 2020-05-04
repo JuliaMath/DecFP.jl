@@ -183,15 +183,6 @@ julia> ldexp10(Dec64(15), 2)
 """
 ldexp10(x::DecFP.DecimalFloatingPoint, n::Integer)
 
-# for compatibility with julia#29885
-if isdefined(Base.Grisu, :getbuf)
-    getdigitsbuf() = Base.Grisu.getbuf()
-elseif isdefined(Base.Grisu, :DIGITSs)
-    getdigitsbuf() = Base.Grisu.DIGITSs[Threads.threadid()]
-else
-    getdigitsbuf() = Base.Grisu.DIGITS
-end
-
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
     Ti = eval(Symbol(string("UInt",w)))
@@ -350,10 +341,6 @@ for w in (32,64,128)
             neg = signbit(x)
             return Int32(n), Int32(pt), neg
         end
-
-        # compatibility with julia#30373
-        Printf.Printf.fix_dec(x::$BID, n::Int) = Printf.Printf.fix_dec(x, n, getdigitsbuf())
-        Printf.Printf.ini_dec(x::$BID, n::Int) = Printf.Printf.ini_dec(x, n, getdigitsbuf())
 
         Base.fma(x::$BID, y::$BID, z::$BID) = nox(ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID,Cuint,Ref{Cuint}), x, y, z, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())))
         Base.muladd(x::$BID, y::$BID, z::$BID) = fma(x,y,z) # faster than x+y*z
