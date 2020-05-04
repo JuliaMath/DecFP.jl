@@ -404,13 +404,11 @@ for w in (32,64,128)
     @eval Base.:-(x::$BID) = @xchk(ccall(($(bidsym(w,"negate")), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
     @eval Base.round(x::$BID) = @xchk(ccall(($(bidsym(w,"nearbyint")), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
 
-    @eval begin
-        function SpecialFunctions.logabsgamma(x::$BID)
-            isequal(modf(x)[1], -zero(x)) && return typemax(x), one(Int32)
-            signgam = signbit(x) && mod(x, 2) > 1 ? -one(Int32) : one(Int32)
-            y = @xchk(ccall(($(bidsym(w,:lgamma)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
-            return y, signgam
-        end
+    @eval function SpecialFunctions.logabsgamma(x::$BID)
+        isequal(modf(x)[1], -zero(x)) && return typemax(x), one(Int32)
+        signgam = signbit(x) && mod(x, 2) > 1 ? -one(Int32) : one(Int32)
+        y = @xchk(ccall(($(bidsym(w,:lgamma)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
+        return y, signgam
     end
 
     @eval SpecialFunctions.gamma(x::$BID) = @xchk(ccall(($(bidsym(w,:tgamma)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
