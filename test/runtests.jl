@@ -178,6 +178,31 @@ for T in (Dec32, Dec64, Dec128)
     @test T(2)^2 === T(4)
     @test T(2)^3 === T(8)
 
+    for x = -5.0:0.25:5.0, y = -5.0:0.25:5.0
+        @test isequal(rem(T(x), T(y)), rem(x, y))
+        @test isequal(rem(T(x), T(y), RoundNearest), rem(x, y, RoundNearest))
+        @test isequal(rem(T(x), T(y), RoundToZero), rem(x, y, RoundToZero))
+        @test isequal(rem(T(x), T(y), RoundDown), rem(x, y, RoundDown))
+        @test isequal(rem(T(x), T(y), RoundUp), rem(x, y, RoundUp))
+        @test isequal(mod(T(x), T(y)), mod(x, y))
+        @test isequal(T(x) % T(y), x % y)
+    end
+    for x in (NaN, -Inf, -0.0, 0.0, 1.0, Inf), y in (NaN, -Inf, -0.0, 0.0, 1.0, Inf)
+        @test isequal(rem(T(x), T(y)), rem(x, y))
+        @test isequal(rem(T(x), T(y), RoundNearest), rem(x, y, RoundNearest))
+        @test isequal(rem(T(x), T(y), RoundToZero), rem(x, y, RoundToZero))
+        @test isequal(rem(T(x), T(y), RoundDown), rem(x, y, RoundDown))
+        @test isequal(rem(T(x), T(y), RoundUp), rem(x, y, RoundUp))
+        @test isequal(mod(T(x), T(y)), mod(x, y))
+        @test isequal(T(x) % T(y), x % y)
+    end
+    for x = -5.0:0.25:5.0
+        @test isequal(modf(T(x)), modf(x))
+    end
+    for x in (NaN, -Inf, -0.0, Inf)
+        @test isequal(modf(T(x)), modf(x))
+    end
+
     @test trunc(T(2.7)) === floor(T(2.7)) === round(T(2.7), RoundDown) === round(T(2.7), RoundToZero) === T(2)
     @test ceil(T(2.3)) === round(T(2.3), RoundUp) === round(T(2.3), RoundFromZero) === T(3)
     @test round(T(1.5)) === round(T(2.5)) === round(T(1.5), RoundNearest) === round(T(2.5), RoundNearest) === T(2)
