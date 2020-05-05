@@ -152,13 +152,26 @@ for T in (Dec32, Dec64, Dec128)
         end
     end
 
-    for f in (exp,log,sin,cos,tan,asin,acos,atan,sinh,cosh,tanh,asinh,acosh,atanh,log1p,expm1,log10,log2,exp2,exp10,lgamma,sqrt,cbrt)
+    for f in (exp,log,sin,cos,tan,asin,acos,atan,sinh,cosh,tanh,asinh,acosh,atanh,log1p,expm1,log10,log2,exp2,exp10,sqrt,cbrt)
         v = f == acosh ? x : z
         @test f(T(v)) ≈ f(v)
     end
 
     # issue #47
     @test exp10(T(0)) == T(1)
+
+    for x = -3.0:0.25:3.0
+        @test all(logabsgamma(T(x)) .≈ logabsgamma(x))
+    end
+    for x in (NaN, -Inf, -0.0, Inf)
+        @test isequal(logabsgamma(T(x)), logabsgamma(x))
+    end
+
+    @test_throws DomainError gamma(T(-1))
+    @test isnan(gamma(T(NaN)))
+    for x in (-1.5, -0.5, -0.0, 0.0, 0.5, 1.0, 1.5, 2.0, Inf)
+        @test gamma(T(x)) ≈ gamma(x)
+    end
 
     for c in (π, e, γ, catalan, φ)
         @test T(c) ≈ Float64(c)
