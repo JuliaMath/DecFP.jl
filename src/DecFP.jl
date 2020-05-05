@@ -516,6 +516,81 @@ Base.:^(x::DecimalFloatingPoint, p::Integer) = x^oftype(x, p)
 @inline Base.literal_pow(::typeof(^), x::DecimalFloatingPoint, ::Val{2}) = x*x
 @inline Base.literal_pow(::typeof(^), x::DecimalFloatingPoint, ::Val{3}) = x*x*x
 
+# decompose is needed for hash() and comparison with Rational
+function Base.decompose(x::DecimalFloatingPoint)::Tuple{BigInt, Int, BigInt}
+    isnan(x) && return 0, 0, 0
+    isinf(x) && return ifelse(signbit(x), -1, 1), 0, 0
+    iszero(x) && return 0, 0, ifelse(signbit(x), -1, 1)
+    s, e = sigexp(x)
+    if e >= 0
+        if e <= 27
+            return s * BigInt(Int64(5)^e), e, ifelse(signbit(x), -1, 1)
+        else
+            return s * BigInt(5)^e, e, ifelse(signbit(x), -1, 1)
+        end
+    else
+        e2 = -e
+        q, r = divrem(s, oftype(s, 5))
+        while e2 > 0 && r == 0
+            s = q
+            q, r = divrem(s, oftype(s, 5))
+            e2 -= 1
+        end
+        if e2 <= 27
+            return copysign(s, x), e, Int64(5)^e2
+        else
+            return copysign(s, x), e, BigInt(5)^e2
+        end
+    end
+end
+
+function sigexp(x::Dec32)
+    n = reinterpret(UInt32, x)
+    if n & 0x60000000 == 0x60000000
+        s = ((n & 0x001fffff) | 0x00800000) % Int32
+        e = ((n & 0x1fe00000) >> 21) % Int
+    else
+        s = (n & 0x007fffff) % Int32
+        e = ((n & 0x7f800000) >> 23) % Int
+    end
+    e -= 101
+    return s, e
+end
+
+function sigexp(x::Dec64)
+    n = reinterpret(UInt64, x)
+    if n & 0x6000000000000000 == 0x6000000000000000
+        s = ((n & 0x0007ffffffffffff) | 0x0020000000000000) % Int64
+        e = ((n & 0x1ff8000000000000) >> 51) % Int
+    else
+        s = (n & 0x001fffffffffffff) % Int64
+        e = ((n & 0x7fe0000000000000) >> 53) % Int
+    end
+    e -= 398
+    return s, e
+end
+
+function sigexp(x::Dec128)
+    n = reinterpret(UInt128, x)
+    if n & 0x60000000000000000000000000000000 == 0x60000000000000000000000000000000
+        s = ((n & 0x00007fffffffffffffffffffffffffff) | 0x00020000000000000000000000000000) % Int128
+        e = ((n & 0x1fff8000000000000000000000000000) >> 111) % Int
+    else
+        s = (n & 0x0001ffffffffffffffffffffffffffff) % Int128
+        e = ((n & 0x7ffe0000000000000000000000000000) >> 113) % Int
+    end
+    e -= 6176
+    return s, e
+end
+
+function Base.:(==)(x::DecimalFloatingPoint, q::Rational)
+    if isfinite(x)
+        ((q.den == 1) | (q.den % 2 == 0) | (q.den % 5 == 0)) & (x*q.den == q.num)
+    else
+        x == q.num/q.den
+    end
+end
+
 # used for next/prevfloat:
 const pinf128 = _parse(Dec128, "+Inf")
 const minf128 = _parse(Dec128, "-Inf")

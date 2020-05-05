@@ -191,6 +191,21 @@ for T in (Dec32, Dec64, Dec128)
     @test T(2)^2 === T(4)
     @test T(2)^3 === T(8)
 
+    @test T("0.1") == 1//10
+    @test 1//10 == T("0.1")
+    @test T("-0.1") == -1//10
+    @test T("0.2") == 1//5
+    @test T("0.5") == 1//2
+    @test T(1) == 1//1
+    @test T(0) == 0//1
+    @test T(Inf) == 1//0
+    @test T(-Inf) == -1//0
+    @test T(1) / T(3) != 1//3
+    @test T(1) / T(3) < 1//3
+    @test T(1) / T(3) <= 1//3
+    @test T(2) / T(3) > 2//3
+    @test T(2) / T(3) >= 2//3
+
     for x = -5.0:0.25:5.0, y = -5.0:0.25:5.0
         @test isequal(rem(T(x), T(y)), rem(x, y))
         @test isequal(rem(T(x), T(y), RoundNearest), rem(x, y, RoundNearest))
