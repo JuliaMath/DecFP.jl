@@ -583,11 +583,19 @@ function sigexp(x::Dec128)
     return s, e
 end
 
-function Base.:(==)(x::DecimalFloatingPoint, q::Rational)
-    if isfinite(x)
-        ((q.den == 1) | (q.den % 2 == 0) | (q.den % 5 == 0)) & (x*q.den == q.num)
+function Base.:(==)(dec::DecimalFloatingPoint, rat::Rational)
+    if isfinite(dec)
+        rat.den == 1 && return dec == rat.num
+        t = rat.den
+        t >>= trailing_zeros(t)
+        q, r = divrem(t, 5)
+        while r == 0
+            t = q
+            q, r = divrem(t, 5)
+        end
+        return t == 1 && dec*rat.den == rat.num
     else
-        x == q.num/q.den
+        return dec == rat.num/rat.den
     end
 end
 
