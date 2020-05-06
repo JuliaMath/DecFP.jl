@@ -205,6 +205,11 @@ for T in (Dec32, Dec64, Dec128)
     @test T(1) / T(3) <= 1//3
     @test T(2) / T(3) > 2//3
     @test T(2) / T(3) >= 2//3
+    @test T(1) / T(6) != 1//6
+    @test T(7) / T(2) == 7//2
+    @test T(7) / T(5) == 7//5
+    @test T(7) / T(100) == 7//100
+    @test T(7) / T(300) != 7//300
 
     for x = -5.0:0.25:5.0, y = -5.0:0.25:5.0
         @test isequal(rem(T(x), T(y)), rem(x, y))
