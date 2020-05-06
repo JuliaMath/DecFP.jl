@@ -587,11 +587,7 @@ function Base.:(==)(dec::DecimalFloatingPoint, rat::Rational)
     if isfinite(dec)
         rat.den == 1 && return dec == rat.num
         t = rat.den
-        q, r = divrem(t, 2)
-        while r == 0
-            t = q
-            q, r = divrem(t, 2)
-        end
+        t >>= trailing_zeros(t)
         q, r = divrem(t, 5)
         while r == 0
             t = q
