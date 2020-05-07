@@ -599,6 +599,24 @@ function Base.:(==)(dec::DecimalFloatingPoint, rat::Rational)
     end
 end
 
+for op in (:(==), :>, :<, :(>=), :(<=))
+    @eval function Base.$op(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint}
+        if sizeof(flt) >= sizeof(dec)
+            return $op(widen(dec), flt)
+        else
+            return $op(dec, T(flt))
+        end
+    end
+
+    @eval function Base.$op(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint}
+        if sizeof(flt) >= sizeof(dec)
+            return $op(flt, widen(dec))
+        else
+            return $op(T(flt), dec)
+        end
+    end
+end
+
 # used for next/prevfloat:
 const pinf128 = _parse(Dec128, "+Inf")
 const minf128 = _parse(Dec128, "-Inf")
