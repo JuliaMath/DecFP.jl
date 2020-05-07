@@ -632,6 +632,9 @@ promote_rule(::Type{F}, ::Type{T}) where {F<:DecimalFloatingPoint,T<:Union{Int8,
 promote_rule(::Type{Irrational{s}}, ::Type{F}) where {s,F<:DecimalFloatingPoint} = F
 promote_rule(::Type{Irrational{s}}, T::Type{Complex{F}}) where {s,F<:DecimalFloatingPoint} = T
 
+Base.widen(::Type{Dec32}) = Dec64
+Base.widen(::Type{Dec64}) = Dec128
+
 macro d_str(s, flags...) parse(Dec64, s) end
 macro d32_str(s, flags...) parse(Dec32, s) end
 macro d64_str(s, flags...) parse(Dec64, s) end

@@ -302,6 +302,11 @@ end
 
 @test DecFP.flags[Threads.threadid()] == 0
 
+@test widen(Dec32) == Dec64
+@test widen(Dec64) == Dec128
+@test widen(Dec32(1)) === Dec64(1)
+@test widen(Dec64(1)) === Dec128(1)
+
 # issue #37
 @test reinterpret(UInt128, Dec128(1.5)) == 0x303e000000000000000000000000000f
 # issue #38
