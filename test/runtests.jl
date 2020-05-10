@@ -51,6 +51,23 @@ for T in (Dec32, Dec64, Dec128)
     @test parse(T, "0.1")::T == T(1//10)
     @test T("0.1")::T == T(1//10)
 
+    if T != Dec128
+        @test T(0.1) == T("0.1")
+        @test T(0.1, RoundNearest) == T("0.1")
+        @test T(0.1, RoundDown) == T("0.1")
+        @test T(0.1, RoundUp) == nextfloat(T("0.1"))
+    end
+    @test T("1", RoundDown) == T(1)
+    @test T("1", RoundUp) == T(1)
+    @test T("1.0000000000000000000000000000000000000001") == T(1)
+    @test T("1.0000000000000000000000000000000000000001", RoundNearest) == T(1)
+    @test T("1.0000000000000000000000000000000000000001", RoundDown) == T(1)
+    @test T("1.0000000000000000000000000000000000000001", RoundUp) == nextfloat(T(1))
+    @test T("0.9999999999999999999999999999999999999999") == T(1)
+    @test T("0.9999999999999999999999999999999999999999", RoundNearest) == T(1)
+    @test T("0.9999999999999999999999999999999999999999", RoundUp) == T(1)
+    @test T("0.9999999999999999999999999999999999999999", RoundDown) == prevfloat(T(1))
+
     io = IOBuffer()
     show(io, T("NaN")); @test String(take!(io)) == "NaN"
     show(io, T("Inf")); @test String(take!(io)) == "Inf"

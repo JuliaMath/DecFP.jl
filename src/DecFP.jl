@@ -117,6 +117,13 @@ for w in (32,64,128)
         $BID(x::Number) = convert($BID, x)
         Base.reinterpret(::Type{$BID}, x::$Ti) = new(x)
     end
+
+    @eval function $BID(x::Real, mode::RoundingMode)
+        setrounding($BID, mode) do
+            convert($BID, x)
+        end
+    end
+
     # fix method ambiguities:
     @eval $BID(x::Rational{T}) where {T} = convert($BID, x)
 end
@@ -208,6 +215,12 @@ for w in (32,64,128)
         end
 
         $BID(x::AbstractString) = parse($BID, x)
+
+        function $BID(x::AbstractString, mode::RoundingMode)
+            setrounding($BID, mode) do
+                parse($BID, x)
+            end
+        end
 
         function tostring(x::$BID)
             # fills global _buffer
