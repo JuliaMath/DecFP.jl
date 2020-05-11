@@ -612,16 +612,16 @@ function Base.:(==)(dec::DecimalFloatingPoint, rat::Rational)
     end
 end
 
-@eval Base.:(==)(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec == T(flt, RoundUp) == T(flt, RoundDown)
-@eval Base.:>(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec > T(flt, RoundDown)
-@eval Base.:<(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec < T(flt, RoundUp)
-@eval Base.:(>=)(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec > T(flt, RoundDown) || dec == T(flt, RoundUp)
-@eval Base.:(<=)(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec < T(flt, RoundUp) || dec == T(flt, RoundDown)
-@eval Base.:(==)(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = T(flt, RoundUp) == T(flt, RoundDown) == dec
-@eval Base.:>(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = T(flt, RoundUp) > dec
-@eval Base.:<(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = T(flt, RoundDown) < dec
-@eval Base.:(>=)(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = T(flt, RoundUp) > dec || T(flt, RoundDown) == dec
-@eval Base.:(<=)(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = T(flt, RoundDown) < dec || T(flt, RoundUp) == dec
+Base.:(==)(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec == T(flt, RoundUp) == T(flt, RoundDown)
+Base.:>(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec > T(flt, RoundDown)
+Base.:<(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec < T(flt, RoundUp)
+Base.:(>=)(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec >= T(flt, RoundUp)
+Base.:(<=)(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec <= T(flt, RoundDown)
+Base.:(==)(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = T(flt, RoundUp) == T(flt, RoundDown) == dec
+Base.:>(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = T(flt, RoundUp) > dec
+Base.:<(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = T(flt, RoundDown) < dec
+Base.:(>=)(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = T(flt, RoundDown) >= dec
+Base.:(<=)(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = T(flt, RoundUp) <= dec
 
 # used for next/prevfloat:
 const pinf128 = _parse(Dec128, "+Inf")
