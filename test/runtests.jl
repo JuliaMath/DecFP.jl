@@ -228,6 +228,38 @@ for T in (Dec32, Dec64, Dec128)
     @test T(7) / T(100) == 7//100
     @test T(7) / T(300) != 7//300
 
+    for Tf in (Float64, Float32, Float16)
+        @test parse(T, "0.1") != parse(Tf, "0.1")
+        @test parse(Tf, "0.1") != parse(T, "0.1")
+        @test parse(T, "0.7") != parse(Tf, "0.7")
+        @test parse(Tf, "0.7") != parse(T, "0.7")
+        if Tf == Float16
+            @test parse(T, "0.1") > parse(Tf, "0.1")
+            @test parse(T, "0.1") >= parse(Tf, "0.1")
+            @test parse(Tf, "0.1") < parse(T, "0.1")
+            @test parse(Tf, "0.1") <= parse(T, "0.1")
+            @test parse(T, "0.7") < parse(Tf, "0.7")
+            @test parse(T, "0.7") <= parse(Tf, "0.7")
+            @test parse(Tf, "0.7") > parse(T, "0.7")
+            @test parse(Tf, "0.7") >= parse(T, "0.7")
+        else
+            @test parse(T, "0.1") < parse(Tf, "0.1")
+            @test parse(T, "0.1") <= parse(Tf, "0.1")
+            @test parse(Tf, "0.1") > parse(T, "0.1")
+            @test parse(Tf, "0.1") >= parse(T, "0.1")
+            @test parse(T, "0.7") > parse(Tf, "0.7")
+            @test parse(T, "0.7") >= parse(Tf, "0.7")
+            @test parse(Tf, "0.7") < parse(T, "0.7")
+            @test parse(Tf, "0.7") <= parse(T, "0.7")
+        end
+        @test parse(T, "0.5") == parse(Tf, "0.5")
+        @test parse(T, "0.5") <= parse(Tf, "0.5")
+        @test parse(T, "0.5") >= parse(Tf, "0.5")
+        @test parse(Tf, "0.5") == parse(T, "0.5")
+        @test parse(Tf, "0.5") <= parse(T, "0.5")
+        @test parse(Tf, "0.5") >= parse(T, "0.5")
+    end
+
     for x = -5.0:0.25:5.0, y = -5.0:0.25:5.0
         @test isequal(rem(T(x), T(y)), rem(x, y))
         @test isequal(rem(T(x), T(y), RoundNearest), rem(x, y, RoundNearest))
