@@ -214,6 +214,15 @@ for w in (32,64,128)
             return @xchk(x, nothing)
         end
 
+        function Base.tryparse(::Type{$BID}, s::AbstractString)
+            x = _parse($BID, s)
+            if isnan(x) && !isnanstr(s)
+                @xchk(x, nothing)
+                return nothing
+            end
+            return @xchk(x, nothing)
+        end
+
         $BID(x::AbstractString) = parse($BID, x)
 
         function $BID(x::AbstractString, mode::RoundingMode)

@@ -47,6 +47,12 @@ for T in (Dec32, Dec64, Dec128)
     @test isinf(parse(T, "inf")::T) && !isfinite(parse(T, "inf")::T)
     @test parse(T,"inf")::T == typemax(T)::T
     @test parse(T,"-inf")::T == typemin(T)::T
+    @test_throws ArgumentError parse(T, "1.0.1")
+    @test_throws ArgumentError parse(T, "NaNny")
+    @test tryparse(T, "1.5")::T == 1.5
+    @test isnan(tryparse(T, "NaN"))
+    @test tryparse(T, "NaNny") === nothing
+    @test tryparse(T, "1.0.1") === nothing
 
     @test parse(T, "0.1")::T == T(1//10)
     @test T("0.1")::T == T(1//10)
