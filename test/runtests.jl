@@ -285,6 +285,7 @@ for T in (Dec32, Dec64, Dec128)
     @test hash(T(-123.0625)) == hash(-123.0625)
     @test hash(T(0.0009765625)) == hash(0.0009765625)
     @test hash(T(-0.0009765625)) == hash(-0.0009765625)
+    @test hash(T(10)^70) == hash(BigInt(10)^70)
 
     for x = -5.0:0.25:5.0, y = -5.0:0.25:5.0
         @test isequal(rem(T(x), T(y)), rem(x, y))
