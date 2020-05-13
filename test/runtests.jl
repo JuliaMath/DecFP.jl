@@ -266,6 +266,26 @@ for T in (Dec32, Dec64, Dec128)
         @test parse(Tf, "0.5") >= parse(T, "0.5")
     end
 
+    @test hash(T(NaN)) == hash(NaN)
+    @test hash(T(Inf)) == hash(Inf)
+    @test hash(T(-Inf)) == hash(-Inf)
+    @test hash(T(0)) == hash(0.0) == hash(0)
+    @test hash(T(-0.0)) == hash(-0.0)
+    @test hash(T(1)) == hash(1.0)
+    @test hash(T(-1)) == hash(-1.0)
+    @test hash(T(25)) == hash(25.0)
+    @test hash(T(-25)) == hash(-25.0)
+    @test hash(T(77)) == hash(77.0)
+    @test hash(T(-77)) == hash(-77.0)
+    @test hash(T(3500)) == hash(3500.0)
+    @test hash(T(-3500)) == hash(-3500.0)
+    @test hash(T(1234.5)) == hash(1234.5)
+    @test hash(T(-1234.5)) == hash(-1234.5)
+    @test hash(T(123.0625)) == hash(123.0625)
+    @test hash(T(-123.0625)) == hash(-123.0625)
+    @test hash(T(0.0009765625)) == hash(0.0009765625)
+    @test hash(T(-0.0009765625)) == hash(-0.0009765625)
+
     for x = -5.0:0.25:5.0, y = -5.0:0.25:5.0
         @test isequal(rem(T(x), T(y)), rem(x, y))
         @test isequal(rem(T(x), T(y), RoundNearest), rem(x, y, RoundNearest))
@@ -361,6 +381,15 @@ end
 @test widen(Dec64) == Dec128
 @test widen(Dec32(1)) === Dec64(1)
 @test widen(Dec64(1)) === Dec128(1)
+
+@test hash(Dec32(9999999)) == hash(9999999)
+@test hash(Dec32(-9999999)) == hash(-9999999)
+@test hash(Dec64(9999999999999999)) == hash(9999999999999999)
+@test hash(Dec64(-9999999999999999)) == hash(-9999999999999999)
+@test hash(Dec128("9999999999999999999999999999999999")) == hash(9999999999999999999999999999999999)
+@test hash(Dec128("-9999999999999999999999999999999999")) == hash(-9999999999999999999999999999999999)
+@test hash(Dec128(2)^-30) == hash(BigFloat(2)^-30)
+@test hash(-Dec128(2)^-30) == hash(-BigFloat(2)^-30)
 
 # issue #37
 @test reinterpret(UInt128, Dec128(1.5)) == 0x303e000000000000000000000000000f
