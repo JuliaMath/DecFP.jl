@@ -29,7 +29,7 @@ The string macro `d"3.2"` constructs `Dec64`.
 Once a decimal float is constructed, most Julia arithmetic and
 special functions should work without modification.  For example,
 `d"3.2" * d"4.5"` produces the (exact) `Dec64` result `14.4`
-Most basic arithmetic functions are supported, and many special functions
+All basic arithmetic functions are supported, and many special functions
 (`sqrt`, `log`, trigonometric functions, etc.).   Mixed operations
 involving decimal and binary floating-point or integer types are supported
 (the result is promoted to decimal floating-point).
