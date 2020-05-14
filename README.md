@@ -14,7 +14,9 @@ different from packages such as
 *arbitrary-precision* decimal types analogous to `BigFloat`: arbitrary
 precision types are very flexible, but fixed-precision types such
 as those in DecFP are much faster (though still about 100x slower than
-the hardware binary floating-point types `Float32` and `Float64`).
+the hardware binary floating-point types `Float32` and `Float64`) and
+more memory-efficient (an array of `Dec64` values has exactly the
+same memory footprint as an array of `Float64` values).
 
 The DecFP package currently requires the Julia 0.6 release or later.
 
