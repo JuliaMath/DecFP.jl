@@ -28,6 +28,8 @@ other Julia numeric types (binary floating-point or integers) via
 `d64"3.2"` (a Julia string macro); similarly for `Dec32` and `Dec128`.
 The string macro `d"3.2"` constructs `Dec64`.
 
+* **Note:** A decimal floating-point constant like `1.1` in Julia refers to a `Float64` (binary floating-point value).  So, for example, `Dec128(1.999999999999999999) == 2.0 ≠ d128"1.999999999999999999"`, since Julia first rounds `1.999999999999999999` to the closest `Float64` value (`2.0`) before converting to `Dec128`.  If you need to specify an exact decimal constant, therefore, use one of the string-based constructors.  If you use a string macro like `d128"1.999999999999999999"`, then the string parsing occurs *before* compilation and incurs no runtime cost.
+
 Once a decimal float is constructed, most Julia arithmetic and
 special functions should work without modification.  For example,
 `d"3.2" * d"4.5"` produces the (exact) `Dec64` result `14.4`
