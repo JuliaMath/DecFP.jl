@@ -18,7 +18,7 @@ the hardware binary floating-point types `Float32` and `Float64`) and
 more memory-efficient (an array of `Dec64` values has exactly the
 same memory footprint as an array of `Float64` values).
 
-The DecFP package currently requires the Julia 0.6 release or later.
+The latest version of the DecFP package requires Julia 1.3 or later.
 
 ## Usage
 
