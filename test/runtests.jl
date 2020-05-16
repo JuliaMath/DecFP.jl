@@ -144,6 +144,8 @@ for T in (Dec32, Dec64, Dec128)
     @test zero(T)::T == 0
     @test signbit(xd) == signbit(x) && signbit(yd) == signbit(y) && signbit(parse(T,"-Inf"))
     @test isnan(sign(T(NaN)))
+    @test isequal(sign(T(0.0)), T(0.0))
+    @test isequal(sign(T(-0.0)), T(-0.0))
     @test sign(xd)::T == sign(x) && sign(yd)::T == sign(y)
 
     @test nextfloat(xd)::T == xd + eps(T)
