@@ -371,7 +371,7 @@ for w in (32,64,128)
         Base.zero(::Union{Type{$BID},$BID}) = $(_parse(T, "0"))
 
         Base.signbit(x::$BID) = $(zero(Ti)) != $(Ti(1) << (Ti(w - 1))) & x.x
-        Base.sign(x::$BID) = ifelse(signbit(x), $(_parse(T, "-1")), $(_parse(T, "1")))
+        Base.sign(x::$BID) = ifelse(isnan(x), x, ifelse(signbit(x), $(_parse(T, "-1")), $(_parse(T, "1"))))
 
         Base.nextfloat(x::$BID) = nox(_nextfloat(x))
         Base.prevfloat(x::$BID) = nox(_prevfloat(x))

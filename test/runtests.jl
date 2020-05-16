@@ -143,6 +143,7 @@ for T in (Dec32, Dec64, Dec128)
     @test one(T)::T == 1
     @test zero(T)::T == 0
     @test signbit(xd) == signbit(x) && signbit(yd) == signbit(y) && signbit(parse(T,"-Inf"))
+    @test isnan(sign(T(NaN)))
     @test sign(xd)::T == sign(x) && sign(yd)::T == sign(y)
 
     @test nextfloat(xd)::T == xd + eps(T)
