@@ -587,6 +587,43 @@ function Base.decompose(x::DecimalFloatingPoint)::Tuple{BigInt, Int, BigInt}
     end
 end
 
+"""
+    Dec32(x::Union{Real, AbstractString} [, mode::RoundingMode])
+    Dec32([sign::Integer,] significand::Integer, exponent::Integer)
+"""
+function Dec32(sign::Integer, significand::Integer, exponent::Integer)
+    -1 <= sign <= 1 || throw(DomainError(sign, "sign must be -1, 0, or +1"))
+    significand == 0 && return flipsign(zero(Dec32), sign)
+    sign == 0 && throw(DomainError(sign, "sign must be -1 or +1 for non-zero significand"))
+    sb = signbit(sign) ? 0x80000000 : zero(UInt32)
+    e = exponent + 101
+    s = Int32(abs(significand))
+    while s >= 10000000 # Int(maxintfloat(Dec32))
+        q, r = divrem(s, Int32(10))
+        r != 0 && throw(InexactError(:Dec32, Dec32, (sign, significand, exponent)))
+        s = q
+        e += 1
+    end
+    while e > 191 && s < 1000000 # Int(maxintfloat(Dec32) / 10)
+        s *= Int32(10)
+        e -= 1
+    end
+    e > 191 && throw(InexactError(:Dec32, Dec32, (sign, significand, exponent)))
+    while e < 0
+        q, r = divrem(s, Int32(10))
+        r != 0 && throw(InexactError(:Dec32, Dec32, (sign, significand, exponent)))
+        s = q
+        e += 1
+    end
+    # check whether significand will fit in 23 bits
+    if s < 0x00200000
+        return reinterpret(Dec32, sb | (UInt32(e) << 23) | s)
+    end
+    return reinterpret(Dec32, sb | 0x60000000 | (UInt32(e) << 21) | (s & 0x001fffff))
+end
+
+Dec32(significand::Integer, exponent::Integer) = Dec32(sign(significand), significand, exponent)
+
 function sigexp(x::Dec32)
     n = reinterpret(UInt32, x)
     if n & 0x60000000 == 0x60000000
@@ -600,6 +637,43 @@ function sigexp(x::Dec32)
     return s, e
 end
 
+"""
+    Dec64(x::Union{Real, AbstractString} [, mode::RoundingMode])
+    Dec64([sign::Integer,] significand::Integer, exponent::Integer)
+"""
+function Dec64(sign::Integer, significand::Integer, exponent::Integer)
+    -1 <= sign <= 1 || throw(DomainError(sign, "sign must be -1, 0, or +1"))
+    significand == 0 && return flipsign(zero(Dec64), sign)
+    sign == 0 && throw(DomainError(sign, "sign must be -1 or +1 for non-zero significand"))
+    sb = signbit(sign) ? 0x8000000000000000 : zero(UInt64)
+    e = exponent + 398
+    s = Int64(abs(significand))
+    while s >= 10000000000000000 # Int64(maxintfloat(Dec64))
+        q, r = divrem(s, 10)
+        r != 0 && throw(InexactError(:Dec64, Dec64, (sign, significand, exponent)))
+        s = q
+        e += 1
+    end
+    while e > 767 && s < 1000000000000000 # Int64(maxintfloat(Dec64) / 10)
+        s *= 10
+        e -= 1
+    end
+    e > 767 && throw(InexactError(:Dec64, Dec64, (sign, significand, exponent)))
+    while e < 0
+        q, r = divrem(s, 10)
+        r != 0 && throw(InexactError(:Dec64, Dec64, (sign, significand, exponent)))
+        s = q
+        e += 1
+    end
+    # check whether significand will fit in 53 bits
+    if s < 0x0020000000000000
+        return reinterpret(Dec64, sb | (UInt64(e) << 53) | s)
+    end
+    return reinterpret(Dec64, sb | 0x6000000000000000 | (UInt64(e) << 51) | (s & 0x0007ffffffffffff))
+end
+
+Dec64(significand::Integer, exponent::Integer) = Dec64(sign(significand), significand, exponent)
+
 function sigexp(x::Dec64)
     n = reinterpret(UInt64, x)
     if n & 0x6000000000000000 == 0x6000000000000000
@@ -612,6 +686,43 @@ function sigexp(x::Dec64)
     e -= 398
     return s, e
 end
+
+"""
+    Dec128(x::Union{Real, AbstractString} [, mode::RoundingMode])
+    Dec128([sign::Integer,] significand::Integer, exponent::Integer)
+"""
+function Dec128(sign::Integer, significand::Integer, exponent::Integer)
+    -1 <= sign <= 1 || throw(DomainError(sign, "sign must be -1, 0, or +1"))
+    significand == 0 && return flipsign(zero(Dec128), sign)
+    sign == 0 && throw(DomainError(sign, "sign must be -1 or +1 for non-zero significand"))
+    sb = signbit(sign) ? 0x80000000000000000000000000000000 : zero(UInt128)
+    e = exponent + 6176
+    s = Int128(abs(significand))
+    while s >= 10000000000000000000000000000000000 # Int128(maxintfloat(Dec128))
+        q, r = divrem(s, 10)
+        r != 0 && throw(InexactError(:Dec128, Dec128, (sign, significand, exponent)))
+        s = q
+        e += 1
+    end
+    while e > 12287 && s < 1000000000000000000000000000000000 # Int128(maxintfloat(Dec128) / 10)
+        s *= 10
+        e -= 1
+    end
+    e > 12287 && throw(InexactError(:Dec128, Dec128, (sign, significand, exponent)))
+    while e < 0
+        q, r = divrem(s, 10)
+        r != 0 && throw(InexactError(:Dec128, Dec128, (sign, significand, exponent)))
+        s = q
+        e += 1
+    end
+    # check whether significand will fit in 113 bits
+    if s < 0x00020000000000000000000000000000
+        return reinterpret(Dec128, sb | (UInt128(e) << 113) | s)
+    end
+    return reinterpret(Dec128, sb | 0x60000000000000000000000000000000 | (UInt128(e) << 111) | (s & 0x00007fffffffffffffffffffffffffff))
+end
+
+Dec128(significand::Integer, exponent::Integer) = Dec128(sign(significand), significand, exponent)
 
 function sigexp(x::Dec128)
     n = reinterpret(UInt128, x)
