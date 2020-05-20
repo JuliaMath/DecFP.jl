@@ -476,6 +476,9 @@ for w in (32,64,128)
         end
     end
 
+    @eval Base.convert(::Type{$BID}, x::Int128) = $BID(string(x))
+    @eval Base.convert(::Type{$BID}, x::UInt128) = $BID(string(x))
+
     for w′ in (8,16,32,64)
         for (i′, i′str) in (("Int$w′", "int$w′"), ("UInt$w′", "uint$w′"))
             Ti′ = eval(Symbol(i′))
@@ -487,6 +490,48 @@ for w in (32,64,128)
                 Base.convert(::Type{$Ti′}, x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), InexactError, :convert, $BID, x)
                 Base.$(Symbol("$Ti′"))(x::$BID) = convert($Ti′, x)
             end
+        end
+    end
+
+    for i′ in (Int128, UInt128)
+        Ti′ = eval(Symbol(i′))
+        @eval begin
+            function Base.trunc(::Type{$Ti′}, x::$BID)
+                x′ = trunc(x)
+                (x′ < $BID(typemin($Ti′)) || x′ > $BID(typemax($Ti′))) && throw(InexactError(:convert, $Ti′, x))
+                s, e = sigexp(x′)
+                return flipsign(s * $Ti′(10)^e, x)
+            end
+
+            function Base.floor(::Type{$Ti′}, x::$BID)
+                x′ = floor(x)
+                (x′ < $BID(typemin($Ti′)) || x′ > $BID(typemax($Ti′))) && throw(InexactError(:convert, $Ti′, x))
+                s, e = sigexp(x′)
+                return flipsign(s * $Ti′(10)^e, x)
+            end
+
+            function Base.ceil(::Type{$Ti′}, x::$BID)
+                x′ = ceil(x)
+                (x′ < $BID(typemin($Ti′)) || x′ > $BID(typemax($Ti′))) && throw(InexactError(:convert, $Ti′, x))
+                s, e = sigexp(x′)
+                return flipsign(s * $Ti′(10)^e, x)
+            end
+
+            function Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway})
+                x′ = round(x, RoundNearestTiesAway)
+                (x′ < $BID(typemin($Ti′)) || x′ > $BID(typemax($Ti′))) && throw(InexactError(:convert, $Ti′, x))
+                s, e = sigexp(x′)
+                return flipsign(s * $Ti′(10)^e, x)
+            end
+
+            function Base.convert(::Type{$Ti′}, x::$BID)
+                x != trunc(x) && throw(InexactError(:convert, $Ti′, x))
+                (x < $BID(typemin($Ti′)) || x > $BID(typemax($Ti′))) && throw(InexactError(:convert, $Ti′, x))
+                s, e = sigexp(x)
+                return flipsign(s * $Ti′(10)^e, x)
+            end
+
+            Base.$(Symbol("$Ti′"))(x::$BID) = convert($Ti′, x)
         end
     end
 
@@ -659,7 +704,7 @@ Base.convert(T::Type{F}, x::Unsigned) where {F<:DecimalFloatingPoint} = F(UInt64
 Base.convert(T::Type{F}, x::Rational) where {F<:DecimalFloatingPoint} = F(x.num) / F(x.den)
 Base.convert(T::Type{F}, x::Float16) where {F<:DecimalFloatingPoint} = F(Float32(x))
 promote_rule(::Type{F}, ::Type{Float16}) where {F<:DecimalFloatingPoint} = F
-promote_rule(::Type{F}, ::Type{T}) where {F<:DecimalFloatingPoint,T<:Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64}} = F
+promote_rule(::Type{F}, ::Type{T}) where {F<:DecimalFloatingPoint,T<:Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Int128,UInt128}} = F
 
 # so that mathconsts get promoted to Dec32, not Dec64, like Float32
 promote_rule(::Type{Irrational{s}}, ::Type{F}) where {s,F<:DecimalFloatingPoint} = F
