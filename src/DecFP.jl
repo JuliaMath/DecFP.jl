@@ -495,44 +495,30 @@ for w in (32,64,128)
 
     for i′ in (Int128, UInt128)
         Ti′ = eval(Symbol(i′))
-        @eval begin
-            function Base.trunc(::Type{$Ti′}, x::$BID)
-                x′ = trunc(x)
-                (x′ < typemin($Ti′) || x′ > typemax($Ti′)) && throw(InexactError(:trunc, $Ti′, x))
+        for (f) in (:trunc, :floor, :ceil)
+            @eval function Base.$f(::Type{$Ti′}, x::$BID)
+                x′ = $f(x)
+                (x′ < typemin($Ti′) || x′ > typemax($Ti′)) && throw(InexactError(Symbol($f), $Ti′, x))
                 s, e = sigexp(x′)
                 return flipsign(s * $Ti′(10)^e, x)
             end
-
-            function Base.floor(::Type{$Ti′}, x::$BID)
-                x′ = floor(x)
-                (x′ < typemin($Ti′) || x′ > typemax($Ti′)) && throw(InexactError(:floor, $Ti′, x))
-                s, e = sigexp(x′)
-                return flipsign(s * $Ti′(10)^e, x)
-            end
-
-            function Base.ceil(::Type{$Ti′}, x::$BID)
-                x′ = ceil(x)
-                (x′ < typemin($Ti′) || x′ > typemax($Ti′)) && throw(InexactError(:ceil, $Ti′, x))
-                s, e = sigexp(x′)
-                return flipsign(s * $Ti′(10)^e, x)
-            end
-
-            function Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway})
-                x′ = round(x, RoundNearestTiesAway)
-                (x′ < typemin($Ti′) || x′ > typemax($Ti′)) && throw(InexactError(:round, $Ti′, x))
-                s, e = sigexp(x′)
-                return flipsign(s * $Ti′(10)^e, x)
-            end
-
-            function Base.convert(::Type{$Ti′}, x::$BID)
-                x != trunc(x) && throw(InexactError(:convert, $Ti′, x))
-                (x < typemin($Ti′) || x > typemax($Ti′)) && throw(InexactError(:convert, $Ti′, x))
-                s, e = sigexp(x)
-                return flipsign(s * $Ti′(10)^e, x)
-            end
-
-            Base.$(Symbol("$Ti′"))(x::$BID) = convert($Ti′, x)
         end
+
+        @eval function Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway})
+            x′ = round(x, RoundNearestTiesAway)
+            (x′ < typemin($Ti′) || x′ > typemax($Ti′)) && throw(InexactError(:round, $Ti′, x))
+            s, e = sigexp(x′)
+            return flipsign(s * $Ti′(10)^e, x)
+        end
+
+        @eval function Base.convert(::Type{$Ti′}, x::$BID)
+            x != trunc(x) && throw(InexactError(:convert, $Ti′, x))
+            (x < $BID(typemin($Ti′)) || x > $BID(typemax($Ti′))) && throw(InexactError(:convert, $Ti′, x))
+            s, e = sigexp(x)
+            return flipsign(s * $Ti′(10)^e, x)
+        end
+
+        @eval Base.$(Symbol("$Ti′"))(x::$BID) = convert($Ti′, x)
     end
 
     @eval Base.bswap(x::$BID) = reinterpret($BID, bswap(x.x))
