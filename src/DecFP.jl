@@ -500,10 +500,7 @@ Base.round(x::DecimalFloatingPoint, ::RoundingMode{:FromZero}) = signbit(x) ? fl
 
 for (f) in (:trunc, :floor, :ceil)
     @eval function Base.$f(::Type{I}, x::DecimalFloatingPoint) where {I<:Integer}
-        I′ = I
-        if I′ == Integer
-            I′ = Int
-        end
+        I′ = isabstracttype(I) ? (I <: Unsigned ? UInt : Int) : I
         x′ = $f(x)
         typemin(I′) <= x′ <= typemax(I′) || throw(InexactError(Symbol($f), I′, x))
         s, e = sigexp(x′)
@@ -512,10 +509,7 @@ for (f) in (:trunc, :floor, :ceil)
 end
 
 function Base.convert(::Type{I}, x::DecimalFloatingPoint) where {I<:Integer}
-    I′ = I
-    if I′ == Integer
-        I′ = Int
-    end
+    I′ = isabstracttype(I) ? (I <: Unsigned ? UInt : Int) : I
     x != trunc(x) && throw(InexactError(:convert, I′, x))
     typemin(I′) <= x <= typemax(I′) || throw(InexactError(:convert, I′, x))
     s, e = sigexp(x)
