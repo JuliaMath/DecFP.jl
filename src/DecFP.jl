@@ -476,9 +476,6 @@ for w in (32,64,128)
         end
     end
 
-    @eval Base.convert(::Type{$BID}, x::Int128) = $BID(string(x))
-    @eval Base.convert(::Type{$BID}, x::UInt128) = $BID(string(x))
-
     for w′ in (8,16,32,64)
         for (i′, i′str) in (("Int$w′", "int$w′"), ("UInt$w′", "uint$w′"))
             Ti′ = eval(Symbol(i′))
@@ -493,34 +490,6 @@ for w in (32,64,128)
         end
     end
 
-    for i′ in (Int128, UInt128)
-        Ti′ = eval(Symbol(i′))
-        for (f) in (:trunc, :floor, :ceil)
-            @eval function Base.$f(::Type{$Ti′}, x::$BID)
-                x′ = $f(x)
-                (x′ < typemin($Ti′) || x′ > typemax($Ti′)) && throw(InexactError(Symbol($f), $Ti′, x))
-                s, e = sigexp(x′)
-                return flipsign(s * $Ti′(10)^e, x)
-            end
-        end
-
-        @eval function Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway})
-            x′ = round(x, RoundNearestTiesAway)
-            (x′ < typemin($Ti′) || x′ > typemax($Ti′)) && throw(InexactError(:round, $Ti′, x))
-            s, e = sigexp(x′)
-            return flipsign(s * $Ti′(10)^e, x)
-        end
-
-        @eval function Base.convert(::Type{$Ti′}, x::$BID)
-            x != trunc(x) && throw(InexactError(:convert, $Ti′, x))
-            (x < $BID(typemin($Ti′)) || x > $BID(typemax($Ti′))) && throw(InexactError(:convert, $Ti′, x))
-            s, e = sigexp(x)
-            return flipsign(s * $Ti′(10)^e, x)
-        end
-
-        @eval Base.$(Symbol("$Ti′"))(x::$BID) = convert($Ti′, x)
-    end
-
     @eval Base.bswap(x::$BID) = reinterpret($BID, bswap(x.x))
     @eval Base.convert(::Type{Float16}, x::$BID) = convert(Float16, convert(Float32, x))
     @eval Base.Float16(x::$BID) = convert(Float16, x)
@@ -529,15 +498,36 @@ end # widths w
 
 Base.round(x::DecimalFloatingPoint, ::RoundingMode{:FromZero}) = signbit(x) ? floor(x) : ceil(x)
 
-Base.trunc(::Type{Integer}, x::DecimalFloatingPoint) = trunc(Int, x)
-Base.floor(::Type{Integer}, x::DecimalFloatingPoint) = floor(Int, x)
-Base.ceil(::Type{Integer}, x::DecimalFloatingPoint) = ceil(Int, x)
-Base.round(::Type{Integer}, x::DecimalFloatingPoint) = round(Int, x)
-Base.round(::Type{Integer}, x::DecimalFloatingPoint, ::RoundingMode{:NearestTiesAway}) = round(Int, x, RoundNearestTiesAway)
-Base.convert(::Type{Integer}, x::DecimalFloatingPoint) = convert(Int, x)
+for (f) in (:trunc, :floor, :ceil)
+    @eval function Base.$f(::Type{I}, x::DecimalFloatingPoint) where {I<:Integer}
+        I′ = I
+        if I′ == Integer
+            I′ = Int
+        end
+        x′ = $f(x)
+        typemin(I′) <= x′ <= typemax(I′) || throw(InexactError(Symbol($f), I′, x))
+        s, e = sigexp(x′)
+        return I′(flipsign(s * I′(10)^e, x))
+    end
+end
+
+function Base.convert(::Type{I}, x::DecimalFloatingPoint) where {I<:Integer}
+    I′ = I
+    if I′ == Integer
+        I′ = Int
+    end
+    x != trunc(x) && throw(InexactError(:convert, I′, x))
+    typemin(I′) <= x <= typemax(I′) || throw(InexactError(:convert, I′, x))
+    s, e = sigexp(x)
+    return I′(flipsign(s * I′(10)^e, x))
+end
+
+Base.Int128(x::DecimalFloatingPoint) = convert(Int128, x)
+Base.UInt128(x::DecimalFloatingPoint) = convert(UInt128, x)
 
 Base.round(::Type{T}, x::DecimalFloatingPoint) where {T<:Integer} = convert(T, round(x))
 Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:Nearest}) where {T<:Integer} = convert(T, round(x, RoundNearest))
+Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:NearestTiesAway}) where {T<:Integer} = convert(T, round(x, RoundNearestTiesAway))
 function Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:NearestTiesUp}) where {T<:Integer}
     y = floor(T, x)
     ifelse(x==y, y, copysign(floor(T, 2*x-y), x))
@@ -684,11 +674,10 @@ Base.maxintfloat(::Type{Dec32}) = reinterpret(Dec32, 0x36000001) # Dec32("1e7")
 Base.maxintfloat(::Type{Dec64}) = reinterpret(Dec64, 0x33c0000000000001) # Dec64("1e16")
 Base.maxintfloat(::Type{Dec128}) = reinterpret(Dec128, 0x30840000000000000000000000000001) # Dec128("1e34")
 
-Base.convert(T::Type{F}, x::Union{Int8,UInt8,Int16,UInt16}) where {F<:DecimalFloatingPoint} = F(Int32(x))
-Base.convert(T::Type{F}, x::Integer) where {F<:DecimalFloatingPoint} = F(Int64(x))
-Base.convert(T::Type{F}, x::Unsigned) where {F<:DecimalFloatingPoint} = F(UInt64(x))
-Base.convert(T::Type{F}, x::Rational) where {F<:DecimalFloatingPoint} = F(x.num) / F(x.den)
-Base.convert(T::Type{F}, x::Float16) where {F<:DecimalFloatingPoint} = F(Float32(x))
+Base.convert(::Type{F}, x::Union{Int8,UInt8,Int16,UInt16}) where {F<:DecimalFloatingPoint} = F(Int32(x))
+Base.convert(::Type{F}, x::Integer) where {F<:DecimalFloatingPoint} = F(string(x))
+Base.convert(::Type{F}, x::Rational) where {F<:DecimalFloatingPoint} = F(x.num) / F(x.den)
+Base.convert(::Type{F}, x::Float16) where {F<:DecimalFloatingPoint} = F(Float32(x))
 promote_rule(::Type{F}, ::Type{Float16}) where {F<:DecimalFloatingPoint} = F
 promote_rule(::Type{F}, ::Type{T}) where {F<:DecimalFloatingPoint,T<:Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Int128,UInt128}} = F
 
