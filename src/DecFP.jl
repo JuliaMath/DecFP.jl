@@ -498,35 +498,35 @@ for w in (32,64,128)
         @eval begin
             function Base.trunc(::Type{$Ti′}, x::$BID)
                 x′ = trunc(x)
-                (x′ < $BID(typemin($Ti′)) || x′ > $BID(typemax($Ti′))) && throw(InexactError(:convert, $Ti′, x))
+                (x′ < typemin($Ti′) || x′ > typemax($Ti′)) && throw(InexactError(:trunc, $Ti′, x))
                 s, e = sigexp(x′)
                 return flipsign(s * $Ti′(10)^e, x)
             end
 
             function Base.floor(::Type{$Ti′}, x::$BID)
                 x′ = floor(x)
-                (x′ < $BID(typemin($Ti′)) || x′ > $BID(typemax($Ti′))) && throw(InexactError(:convert, $Ti′, x))
+                (x′ < typemin($Ti′) || x′ > typemax($Ti′)) && throw(InexactError(:floor, $Ti′, x))
                 s, e = sigexp(x′)
                 return flipsign(s * $Ti′(10)^e, x)
             end
 
             function Base.ceil(::Type{$Ti′}, x::$BID)
                 x′ = ceil(x)
-                (x′ < $BID(typemin($Ti′)) || x′ > $BID(typemax($Ti′))) && throw(InexactError(:convert, $Ti′, x))
+                (x′ < typemin($Ti′) || x′ > typemax($Ti′)) && throw(InexactError(:ceil, $Ti′, x))
                 s, e = sigexp(x′)
                 return flipsign(s * $Ti′(10)^e, x)
             end
 
             function Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway})
                 x′ = round(x, RoundNearestTiesAway)
-                (x′ < $BID(typemin($Ti′)) || x′ > $BID(typemax($Ti′))) && throw(InexactError(:convert, $Ti′, x))
+                (x′ < typemin($Ti′) || x′ > typemax($Ti′)) && throw(InexactError(:round, $Ti′, x))
                 s, e = sigexp(x′)
                 return flipsign(s * $Ti′(10)^e, x)
             end
 
             function Base.convert(::Type{$Ti′}, x::$BID)
                 x != trunc(x) && throw(InexactError(:convert, $Ti′, x))
-                (x < $BID(typemin($Ti′)) || x > $BID(typemax($Ti′))) && throw(InexactError(:convert, $Ti′, x))
+                (x < typemin($Ti′) || x > typemax($Ti′)) && throw(InexactError(:convert, $Ti′, x))
                 s, e = sigexp(x)
                 return flipsign(s * $Ti′(10)^e, x)
             end
