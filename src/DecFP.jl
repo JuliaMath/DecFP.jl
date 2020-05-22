@@ -498,15 +498,36 @@ end # widths w
 
 Base.round(x::DecimalFloatingPoint, ::RoundingMode{:FromZero}) = signbit(x) ? floor(x) : ceil(x)
 
-Base.trunc(::Type{Integer}, x::DecimalFloatingPoint) = trunc(Int, x)
-Base.floor(::Type{Integer}, x::DecimalFloatingPoint) = floor(Int, x)
-Base.ceil(::Type{Integer}, x::DecimalFloatingPoint) = ceil(Int, x)
-Base.round(::Type{Integer}, x::DecimalFloatingPoint) = round(Int, x)
-Base.round(::Type{Integer}, x::DecimalFloatingPoint, ::RoundingMode{:NearestTiesAway}) = round(Int, x, RoundNearestTiesAway)
+for (f) in (:trunc, :floor, :ceil)
+    @eval Base.$f(::Type{Signed}, x::DecimalFloatingPoint) = $f(Int, x)
+    @eval Base.$f(::Type{Unsigned}, x::DecimalFloatingPoint) = $f(UInt, x)
+    @eval Base.$f(::Type{Integer}, x::DecimalFloatingPoint) = $f(Int, x)
+
+    @eval function Base.$f(::Type{I}, x::DecimalFloatingPoint) where {I<:Integer}
+        x′ = $f(x)
+        typemin(I) <= x′ <= typemax(I) || throw(InexactError(Symbol($f), I, x))
+        s, e = sigexp(x′)
+        return I(flipsign(s * I(10)^e, x))
+    end
+end
+
+Base.convert(::Type{Signed}, x::DecimalFloatingPoint) = convert(Int, x)
+Base.convert(::Type{Unsigned}, x::DecimalFloatingPoint) = convert(UInt, x)
 Base.convert(::Type{Integer}, x::DecimalFloatingPoint) = convert(Int, x)
+
+function Base.convert(::Type{I}, x::DecimalFloatingPoint) where {I<:Integer}
+    x != trunc(x) && throw(InexactError(:convert, I, x))
+    typemin(I) <= x <= typemax(I) || throw(InexactError(:convert, I, x))
+    s, e = sigexp(x)
+    return I(flipsign(s * I(10)^e, x))
+end
+
+Base.Int128(x::DecimalFloatingPoint) = convert(Int128, x)
+Base.UInt128(x::DecimalFloatingPoint) = convert(UInt128, x)
 
 Base.round(::Type{T}, x::DecimalFloatingPoint) where {T<:Integer} = convert(T, round(x))
 Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:Nearest}) where {T<:Integer} = convert(T, round(x, RoundNearest))
+Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:NearestTiesAway}) where {T<:Integer} = convert(T, round(x, RoundNearestTiesAway))
 function Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:NearestTiesUp}) where {T<:Integer}
     y = floor(T, x)
     ifelse(x==y, y, copysign(floor(T, 2*x-y), x))
@@ -653,13 +674,12 @@ Base.maxintfloat(::Type{Dec32}) = reinterpret(Dec32, 0x36000001) # Dec32("1e7")
 Base.maxintfloat(::Type{Dec64}) = reinterpret(Dec64, 0x33c0000000000001) # Dec64("1e16")
 Base.maxintfloat(::Type{Dec128}) = reinterpret(Dec128, 0x30840000000000000000000000000001) # Dec128("1e34")
 
-Base.convert(T::Type{F}, x::Union{Int8,UInt8,Int16,UInt16}) where {F<:DecimalFloatingPoint} = F(Int32(x))
-Base.convert(T::Type{F}, x::Integer) where {F<:DecimalFloatingPoint} = F(Int64(x))
-Base.convert(T::Type{F}, x::Unsigned) where {F<:DecimalFloatingPoint} = F(UInt64(x))
-Base.convert(T::Type{F}, x::Rational) where {F<:DecimalFloatingPoint} = F(x.num) / F(x.den)
-Base.convert(T::Type{F}, x::Float16) where {F<:DecimalFloatingPoint} = F(Float32(x))
+Base.convert(::Type{F}, x::Union{Int8,UInt8,Int16,UInt16}) where {F<:DecimalFloatingPoint} = F(Int32(x))
+Base.convert(::Type{F}, x::Integer) where {F<:DecimalFloatingPoint} = F(string(x))
+Base.convert(::Type{F}, x::Rational) where {F<:DecimalFloatingPoint} = F(x.num) / F(x.den)
+Base.convert(::Type{F}, x::Float16) where {F<:DecimalFloatingPoint} = F(Float32(x))
 promote_rule(::Type{F}, ::Type{Float16}) where {F<:DecimalFloatingPoint} = F
-promote_rule(::Type{F}, ::Type{T}) where {F<:DecimalFloatingPoint,T<:Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64}} = F
+promote_rule(::Type{F}, ::Type{T}) where {F<:DecimalFloatingPoint,T<:Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Int128,UInt128}} = F
 
 # so that mathconsts get promoted to Dec32, not Dec64, like Float32
 promote_rule(::Type{Irrational{s}}, ::Type{F}) where {s,F<:DecimalFloatingPoint} = F
