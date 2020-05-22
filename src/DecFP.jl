@@ -499,21 +499,27 @@ end # widths w
 Base.round(x::DecimalFloatingPoint, ::RoundingMode{:FromZero}) = signbit(x) ? floor(x) : ceil(x)
 
 for (f) in (:trunc, :floor, :ceil)
+    @eval Base.$f(::Type{Signed}, x::DecimalFloatingPoint) = $f(Int, x)
+    @eval Base.$f(::Type{Unsigned}, x::DecimalFloatingPoint) = $f(UInt, x)
+    @eval Base.$f(::Type{Integer}, x::DecimalFloatingPoint) = $f(Int, x)
+
     @eval function Base.$f(::Type{I}, x::DecimalFloatingPoint) where {I<:Integer}
-        I′ = isabstracttype(I) ? (I <: Unsigned ? UInt : Int) : I
         x′ = $f(x)
-        typemin(I′) <= x′ <= typemax(I′) || throw(InexactError(Symbol($f), I′, x))
+        typemin(I) <= x′ <= typemax(I) || throw(InexactError(Symbol($f), I, x))
         s, e = sigexp(x′)
-        return I′(flipsign(s * I′(10)^e, x))
+        return I(flipsign(s * I(10)^e, x))
     end
 end
 
+Base.convert(::Type{Signed}, x::DecimalFloatingPoint) = convert(Int, x)
+Base.convert(::Type{Unsigned}, x::DecimalFloatingPoint) = convert(UInt, x)
+Base.convert(::Type{Integer}, x::DecimalFloatingPoint) = convert(Int, x)
+
 function Base.convert(::Type{I}, x::DecimalFloatingPoint) where {I<:Integer}
-    I′ = isabstracttype(I) ? (I <: Unsigned ? UInt : Int) : I
-    x != trunc(x) && throw(InexactError(:convert, I′, x))
-    typemin(I′) <= x <= typemax(I′) || throw(InexactError(:convert, I′, x))
+    x != trunc(x) && throw(InexactError(:convert, I, x))
+    typemin(I) <= x <= typemax(I) || throw(InexactError(:convert, I, x))
     s, e = sigexp(x)
-    return I′(flipsign(s * I′(10)^e, x))
+    return I(flipsign(s * I(10)^e, x))
 end
 
 Base.Int128(x::DecimalFloatingPoint) = convert(Int128, x)
