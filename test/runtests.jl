@@ -26,8 +26,6 @@ for T in (Dec32, Dec64, Dec128)
 
     if T == Dec32
         @test d32"3.2" * d32"4.5" == d32"14.4"
-        @test T(1, Int32(maxintfloat(T)), 0) == maxintfloat(T)
-        @test T(1, Int32(maxintfloat(T) * 100), -2) == maxintfloat(T)
         @test T(1, Int32(maxintfloat(T) - 1), 90) == floatmax(T)
         @test_throws InexactError T(1, Int32(maxintfloat(T)), 90)
         @test_throws InexactError T(1, Int32(maxintfloat(T)) + 1, 0)
@@ -42,8 +40,6 @@ for T in (Dec32, Dec64, Dec128)
     elseif T == Dec64
         @test d"3.2" * d"4.5" == d"14.4"
         @test d64"3.2" * d64"4.5" == d64"14.4"
-        @test T(1, Int64(maxintfloat(T)), 0) == maxintfloat(T)
-        @test T(1, Int64(maxintfloat(T) * 100), -2) == maxintfloat(T)
         @test T(1, Int64(maxintfloat(T) - 1), 369) == floatmax(T)
         @test_throws InexactError T(1, Int64(maxintfloat(T)), 369)
         @test_throws InexactError T(1, Int64(maxintfloat(T)) + 1, 0)
@@ -57,17 +53,15 @@ for T in (Dec32, Dec64, Dec128)
         @test bswap(Dec64(1.5)) == reinterpret(Dec64, bswap(reinterpret(UInt64, Dec64(1.5))))
     else
         @test d128"3.2" * d128"4.5" == d128"14.4"
-        @test eps(Dec128) == parse(Dec128, "1e-33")
-        @test T(1, 10000000000000000000000000000000000, 0) == maxintfloat(T)
-        @test T(1, 10000000000000000000000000000000000 * 100, -2) == maxintfloat(T)
-        @test T(1, 10000000000000000000000000000000000 - 1, 6111) == floatmax(T)
-        @test_throws InexactError T(1, 10000000000000000000000000000000000, 6111)
-        @test_throws InexactError T(1, 10000000000000000000000000000000000 + 1, 0)
+        @test T(1, Int128(maxintfloat(T)) - 1, 6111) == floatmax(T)
+        @test_throws InexactError T(1, Int128(maxintfloat(T)), 6111)
+        @test_throws InexactError T(1, Int128(maxintfloat(T)) + 1, 0)
         @test T(1, 1, 6144) == T("1e6144")
         @test T(1, 1, -6176) == nextfloat(T(0))
         @test T(1, 10, -6177) == nextfloat(T(0))
         @test_throws InexactError T(1, 1, -6177)
         @test_throws InexactError T(1, 11, -6177)
+        @test eps(Dec128) == parse(Dec128, "1e-33")
         @test floatmax(Dec128) == parse(Dec128, "+9999999999999999999999999999999999E+6111")
         @test bswap(Dec128(1.5)) == reinterpret(Dec128, bswap(reinterpret(UInt128, Dec128(1.5))))
     end
@@ -114,6 +108,8 @@ for T in (Dec32, Dec64, Dec128)
     @test_throws DomainError T(2, 1, 0)
     @test T(125, -2) == T(1.25)
     @test T(-125, -2) == T(-1.25)
+    @test T(1, Int128(maxintfloat(T)), 0) == maxintfloat(T)
+    @test T(1, Int128(maxintfloat(T)) * 100, -2) == maxintfloat(T)
 
     io = IOBuffer()
     show(io, T("NaN")); @test String(take!(io)) == "NaN"
