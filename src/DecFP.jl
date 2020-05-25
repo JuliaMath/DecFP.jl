@@ -124,6 +124,81 @@ for w in (32,64,128)
         end
     end
 
+    @eval function $BID(sign::Integer, significand::Integer, exponent::Integer)
+        -1 <= sign <= 1 || throw(DomainError(sign, "sign must be -1, 0, or +1"))
+        significand == 0 && return flipsign(zero($BID), sign)
+        sign == 0 && throw(DomainError(sign, "sign must be -1 or +1 for non-zero significand"))
+        p = 9 * $w ÷ 32 - 2
+        emax = 3 * 2^($w ÷ 16 + 3)
+        bias = emax + p - 2
+        bemax = emax * 2 - 1
+        ebits = $w ÷ 16 + 6
+        sbits = $w - ebits - 1
+        sb = signbit(sign) ? one($Ti) << ($w - 1) : zero($Ti)
+        e = exponent + bias
+        s = $Ti(abs(significand))
+        while s >= $Ti(maxintfloat($BID))
+            q, r = divrem(s, $Ti(10))
+            r != 0 && throw(InexactError(Symbol($BID), $BID, (sign, significand, exponent)))
+            s = q
+            e += 1
+        end
+        while e > bemax && s < $Ti(maxintfloat($BID)) / 10
+            s *= $Ti(10)
+            e -= 1
+        end
+        e > bemax && throw(InexactError(Symbol($BID), $BID, (sign, significand, exponent)))
+        while e < 0
+            q, r = divrem(s, $Ti(10))
+            r != 0 && throw(InexactError(Symbol($BID), $BID, (sign, significand, exponent)))
+            s = q
+            e += 1
+        end
+        if s < one($Ti) << sbits
+            return reinterpret($BID, sb | ($Ti(e) << sbits) | s)
+        end
+        return reinterpret($BID, sb | ($Ti(0x3) << ($w - 3)) | ($Ti(e) << (sbits - 2)) | (s & (typemax($Ti) >> (ebits + 3))))
+    end
+
+    @eval $BID(significand::Integer, exponent::Integer) = $BID(sign(significand), significand, exponent)
+
+    @eval @doc """
+        $($BID)(x::Union{Real, AbstractString} [, mode::RoundingMode])
+        $($BID)([sign::Integer,] significand::Integer, exponent::Integer)
+
+    Create a $($w)-bit IEEE 754-2008 decimal floating point number. The `mode` argument
+    specifies the direction in which the result should be rounded if the conversion cannot
+    be done exactly. If not provided, the `mode` is set by the current
+    `rounding(DecFP.DecimalFloatingPoint)` mode.
+
+    `$($BID)(x::Real)` is the same as `convert($($BID), x)`.
+
+    `$($BID)(x::AbstractString)` is the same as `parse($($BID), x)`. This is provided for
+    convenience since decimal literals are converted to `Float64` when parsed and may not
+    produce what you expect.
+
+    `$($BID)(sign, significand, exponent)` returns `sign * significand * 10^exponent`.
+    If `sign` isn't passed, use the sign of `significand`.
+
+    # Examples
+    ```julia-repl
+    julia> $($BID)(1)
+    1.0
+
+    julia> $($BID)(1.5)
+    1.5
+
+    julia> $($BID)("0.99999999999999999999999999999999999")
+    1.0
+
+    julia> $($BID)("0.99999999999999999999999999999999999", RoundDown)
+    0.$("9"^(9*$w÷32-2))
+
+    julia> $($BID)(-1, 123456, -4)
+    -12.3456
+    ```
+    """ $BID
+
     # fix method ambiguities:
     @eval $BID(x::Rational{T}) where {T} = convert($BID, x)
 end
