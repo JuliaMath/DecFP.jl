@@ -1,9 +1,17 @@
-using DecFP, Test, Printf, Base.MathConstants, SpecialFunctions
+using DecFP, Test, Printf, Random, Base.MathConstants, SpecialFunctions
 
 @test DecFP.flags[Threads.threadid()] == 0
 
 import DecFP.isnanstr
 @test isnanstr("nan") && isnanstr("  +NAN") && isnanstr("-NaN") && !isnanstr("nano")
+
+function hist(X, n)
+    v = zeros(Int, n)
+    for x in X
+        v[floor(Int, x*n) + 1] += 1
+    end
+    v
+end
 
 function testthreads(T, i, mode)
     @test @sprintf("%.0f", T(i)) == string(i)
@@ -235,6 +243,26 @@ for T in (Dec32, Dec64, Dec128)
     for x in (-1.5, -0.5, -0.0, 0.0, 0.5, 1.0, 1.5, 2.0, Inf)
         @test gamma(T(x)) ≈ gamma(x)
     end
+
+    Random.seed!(1234)
+    @test rand(T) != rand(T)
+    @test 0 <= rand(T) < 1
+    r = rand(convert(T, 97):convert(T, 122))
+    @test typeof(r) == T
+    @test 97 <= r <= 122
+    r = rand(convert(T, 97):convert(T, 2):convert(T, 122), 2)[1]
+    @test typeof(r) == T
+    @test 97 <= r <= 122
+    @test mod(r, 2)==1
+    A = Vector{T}(undef, 16)
+    rand!(A)
+    @test all(0 .<= A .< 1)
+    # array version
+    counts = hist(rand(T, 2000), 4)
+    @test minimum(counts) > 300 # should fail with proba < 1e-26
+    # scalar version
+    counts = hist([rand(T) for i in 1:2000], 4)
+    @test minimum(counts) > 300
 
     for c in (π, e, γ, catalan, φ)
         @test T(c) ≈ Float64(c)
