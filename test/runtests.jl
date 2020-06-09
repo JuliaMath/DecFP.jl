@@ -257,10 +257,10 @@ for T in (Dec32, Dec64, Dec128)
     A = Vector{T}(undef, 16)
     rand!(A)
     @test all(0 .<= A .< 1)
+    # test uniform distribution
     # array version
     counts = hist(rand(T, 2000), 4)
     @test minimum(counts) > 300 # should fail with proba < 1e-26
-    # test uniform distribution
     # scalar version
     counts = hist([rand(T) for i in 1:2000], 4)
     @test minimum(counts) > 300
