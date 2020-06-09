@@ -260,6 +260,7 @@ for T in (Dec32, Dec64, Dec128)
     # array version
     counts = hist(rand(T, 2000), 4)
     @test minimum(counts) > 300 # should fail with proba < 1e-26
+    # test uniform distribution
     # scalar version
     counts = hist([rand(T) for i in 1:2000], 4)
     @test minimum(counts) > 300
