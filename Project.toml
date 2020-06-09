@@ -5,6 +5,7 @@ version = "0.4.10"
 [deps]
 DecFP_jll = "47200ebd-12ce-5be5-abb7-8e082af23329"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [compat]

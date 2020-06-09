@@ -3,7 +3,7 @@ module DecFP
 
 using DecFP_jll
 
-import Printf, SpecialFunctions
+import Printf, Random, SpecialFunctions
 
 export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str, exponent10, ldexp10
 
@@ -496,6 +496,8 @@ for w in (32,64,128)
     end
 
     @eval SpecialFunctions.gamma(x::$BID) = @xchk(ccall(($(bidsym(w,:tgamma)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
+
+    @eval Random.rand(r::Random.AbstractRNG, ::Random.SamplerTrivial{Random.CloseOpen01{$BID}}) =  $BID(1, rand(r, zero($Ti):$Ti(maxintfloat($BID)) - one($Ti)), -(9 * $w ÷ 32 - 2))
 
     for (r,c) in ((RoundingMode{:Nearest},"round_integral_nearest_even"), (RoundingMode{:NearestTiesAway},"round_integral_nearest_away"), (RoundingMode{:ToZero},"round_integral_zero"), (RoundingMode{:Up},"round_integral_positive"), (RoundingMode{:Down},"round_integral_negative"))
         @eval Base.round(x::$BID, ::$r) = @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
