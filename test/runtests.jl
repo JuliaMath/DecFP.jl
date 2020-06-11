@@ -183,6 +183,16 @@ for T in (Dec32, Dec64, Dec128)
     x,y,z = 1.5, -3.25, 0.0625 # exactly represented in binary
     xd = T(x); yd = T(y); zd = T(z)
 
+    @test_throws DomainError sigexp(T(NaN))
+    @test_throws DomainError sigexp(T(Inf))
+    @test_throws DomainError sigexp(T(-Inf))
+    @test sigexp(T(0)) == (1, 0, 0)
+    @test sigexp(T("-0")) == (-1, 0, 0)
+    @test sigexp(T(1)) == (1, 1, 0)
+    @test sigexp(T(-1)) == (-1, 1, 0)
+    @test sigexp(T(-1.25)) == (-1, 125, -2)
+    @test sigexp(maxintfloat(T) - 1) == (1, Int128(maxintfloat(T) - 1), 0)
+
     @test fma(xd,yd,zd)::T == muladd(xd,yd,zd)::T == xd*yd+zd == fma(x,y,z)
 
     @test one(T)::T == 1
