@@ -5,7 +5,7 @@ using DecFP_jll
 
 import Printf, Random, SpecialFunctions
 
-export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str, exponent10, ldexp10
+export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str, exponent10, ldexp10, sigexp
 
 const _buffer = Vector{Vector{UInt8}}()
 
@@ -238,6 +238,19 @@ function isnanstr(s::AbstractString)
     return false
 end
 
+"""
+    sigexp(x::DecFP.DecimalFloatingPoint)
+
+Return `(sign, significand, exponent)` such that `x` is equal to `sign * significand * 10^exponent`.
+Throws `DomainError` for infinite or `NaN` arguments.
+
+# Examples
+```jldoctest
+julia> sigexp(Dec64(1.25))
+(1, 125, -2)
+```
+"""
+sigexp(x::DecimalFloatingPoint)
 
 """
     exponent10(x::DecFP.DecimalFloatingPoint)
@@ -268,6 +281,7 @@ ldexp10(x::DecFP.DecimalFloatingPoint, n::Integer)
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
     Ti = eval(Symbol(string("UInt",w)))
+    Tsi = eval(Symbol(string("Int",w)))
     T = eval(BID)
 
     # hack: we need an internal parsing function that doesn't check exceptions, since
@@ -439,6 +453,26 @@ for w in (32,64,128)
             return Int32(n), Int32(pt), neg
         end
 
+        function sigexp(x::$BID)
+            isnan(x) && throw(DomainError(x, "sigexp(x) is not defined for NaN."))
+            isinf(x) && throw(DomainError(x, "sigexp(x) is only defined for finite x."))
+            p = 9 * $w ÷ 32 - 2
+            emax = 3 * 2^($w ÷ 16 + 3)
+            bias = emax + p - 2
+            ebits = $w ÷ 16 + 6
+            sbits = $w - ebits - 1
+            n = reinterpret($Ti, x)
+            if n & $Ti(0x3) << ($w - 3) == $Ti(0x3) << ($w - 3)
+                s = ((n & typemax($Ti) >> (ebits + 3)) | one($Ti) << sbits) % $Tsi
+                e = ((n & typemax($Ti) << (sbits + 1) >> 3) >> (sbits - 2)) % Int
+            else
+                s = (n & typemax($Ti) >> (ebits + 1)) % $Tsi
+                e = ((n & typemax($Ti) << (sbits + 1) >> 1) >> sbits) % Int
+            end
+            e -= bias
+            return signbit(x) ? -1 : 1, s, e
+        end
+
         Base.fma(x::$BID, y::$BID, z::$BID) = nox(ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID,Cuint,Ref{Cuint}), x, y, z, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())))
         Base.muladd(x::$BID, y::$BID, z::$BID) = fma(x,y,z) # faster than x+y*z
 
@@ -583,7 +617,7 @@ for (f) in (:trunc, :floor, :ceil)
     @eval function Base.$f(::Type{I}, x::DecimalFloatingPoint) where {I<:Integer}
         x′ = $f(x)
         typemin(I) <= x′ <= typemax(I) || throw(InexactError(Symbol($f), I, x))
-        s, e = sigexp(x′)
+        _, s, e = sigexp(x′)
         return I(flipsign(s * I(10)^e, x))
     end
 end
@@ -595,7 +629,7 @@ Base.convert(::Type{Integer}, x::DecimalFloatingPoint) = convert(Int, x)
 function Base.convert(::Type{I}, x::DecimalFloatingPoint) where {I<:Integer}
     x != trunc(x) && throw(InexactError(:convert, I, x))
     typemin(I) <= x <= typemax(I) || throw(InexactError(:convert, I, x))
-    s, e = sigexp(x)
+    _, s, e = sigexp(x)
     return I(flipsign(s * I(10)^e, x))
 end
 
@@ -641,12 +675,12 @@ function Base.decompose(x::DecimalFloatingPoint)::Tuple{BigInt, Int, BigInt}
     isnan(x) && return 0, 0, 0
     isinf(x) && return ifelse(signbit(x), -1, 1), 0, 0
     iszero(x) && return 0, 0, ifelse(signbit(x), -1, 1)
-    s, e = sigexp(x)
+    sign, s, e = sigexp(x)
     if e >= 0
         if e <= 27
-            return s * BigInt(Int64(5)^e), e, ifelse(signbit(x), -1, 1)
+            return s * BigInt(Int64(5)^e), e, sign
         else
-            return s * BigInt(5)^e, e, ifelse(signbit(x), -1, 1)
+            return s * BigInt(5)^e, e, sign
         end
     else
         e2 = -e
@@ -662,45 +696,6 @@ function Base.decompose(x::DecimalFloatingPoint)::Tuple{BigInt, Int, BigInt}
             return copysign(s, x), e, BigInt(5)^e2
         end
     end
-end
-
-function sigexp(x::Dec32)
-    n = reinterpret(UInt32, x)
-    if n & 0x60000000 == 0x60000000
-        s = ((n & 0x001fffff) | 0x00800000) % Int32
-        e = ((n & 0x1fe00000) >> 21) % Int
-    else
-        s = (n & 0x007fffff) % Int32
-        e = ((n & 0x7f800000) >> 23) % Int
-    end
-    e -= 101
-    return s, e
-end
-
-function sigexp(x::Dec64)
-    n = reinterpret(UInt64, x)
-    if n & 0x6000000000000000 == 0x6000000000000000
-        s = ((n & 0x0007ffffffffffff) | 0x0020000000000000) % Int64
-        e = ((n & 0x1ff8000000000000) >> 51) % Int
-    else
-        s = (n & 0x001fffffffffffff) % Int64
-        e = ((n & 0x7fe0000000000000) >> 53) % Int
-    end
-    e -= 398
-    return s, e
-end
-
-function sigexp(x::Dec128)
-    n = reinterpret(UInt128, x)
-    if n & 0x60000000000000000000000000000000 == 0x60000000000000000000000000000000
-        s = ((n & 0x00007fffffffffffffffffffffffffff) | 0x00020000000000000000000000000000) % Int128
-        e = ((n & 0x1fff8000000000000000000000000000) >> 111) % Int
-    else
-        s = (n & 0x0001ffffffffffffffffffffffffffff) % Int128
-        e = ((n & 0x7ffe0000000000000000000000000000) >> 113) % Int
-    end
-    e -= 6176
-    return s, e
 end
 
 function Base.:(==)(dec::DecimalFloatingPoint, rat::Rational)
