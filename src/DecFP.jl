@@ -753,6 +753,10 @@ Base.convert(::Type{F}, x::Float16) where {F<:DecimalFloatingPoint} = F(Float32(
 promote_rule(::Type{F}, ::Type{Float16}) where {F<:DecimalFloatingPoint} = F
 promote_rule(::Type{F}, ::Type{T}) where {F<:DecimalFloatingPoint,T<:Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Int128,UInt128}} = F
 
+# fallback floating-point conversion via strings
+Base.convert(::Type{F}, x::AbstractFloat) where {F<:DecimalFloatingPoint} = F(string(x))
+Base.convert(::Type{F}, x::F) where {F<:DecimalFloatingPoint} = x # don't call AbstractFloat method!
+
 # so that mathconsts get promoted to Dec32, not Dec64, like Float32
 promote_rule(::Type{Irrational{s}}, ::Type{F}) where {s,F<:DecimalFloatingPoint} = F
 promote_rule(::Type{Irrational{s}}, T::Type{Complex{F}}) where {s,F<:DecimalFloatingPoint} = T
