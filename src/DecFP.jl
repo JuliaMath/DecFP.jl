@@ -523,8 +523,8 @@ for w in (32,64,128)
     @eval Base.round(x::$BID) = @xchk(ccall(($(bidsym(w,"nearbyint")), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
 
     @eval function SpecialFunctions.logabsgamma(x::$BID)
-        isequal(modf(x)[1], -zero(x)) && return typemax(x), one(Int)
-        signgam = signbit(x) && mod(x, 2) > 1 ? -one(Int) : one(Int)
+        isequal(modf(x)[1], -zero(x)) && return typemax(x), 1
+        signgam = signbit(x) && mod(x, 2) > 1 ? -1 : 1
         y = @xchk(ccall(($(bidsym(w,:lgamma)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
         return y, signgam
     end
