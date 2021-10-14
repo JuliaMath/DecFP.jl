@@ -491,3 +491,11 @@ end
 
 # issue #139
 @test convert(Dec64, big"2.5") == d"2.5"
+
+@testset "precision" begin
+    @test precision(Dec32, base=10) == 7
+    @test precision(Dec64, base=10) == 16
+    @test precision(Dec128, base=10) == 34
+    @test precision(Dec64, base=100) == 8
+    @test precision(d32"1.2345", base=10) == 7
+end

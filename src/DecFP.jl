@@ -201,6 +201,15 @@ for w in (32,64,128)
 
     # fix method ambiguities:
     @eval $BID(x::Rational{T}) where {T} = convert($BID, x)
+
+    @eval _precision(::Type{$BID}) = $(w == 32 ? 7 : w == 64 ? 16 : 34)
+end
+
+# match semantics in Julia 1.8
+function Base.precision(::Union{T,Type{T}}; base::Integer=2) where {T<:DecimalFloatingPoint}
+    base > 1 || throw(DomainError(base, "`base` cannot be less than 2."))
+    p = _precision(T)
+    return base == 10 ? Int(p) : floor(Int, p / log10(base))
 end
 
 # quickly check whether s begins with "±nan"
