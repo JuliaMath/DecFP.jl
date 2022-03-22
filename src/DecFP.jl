@@ -285,7 +285,30 @@ julia> ldexp10(Dec64(15), 2)
 1500.0
 ```
 """
-ldexp10(x::DecFP.DecimalFloatingPoint, n::Integer)
+ldexp10(x::DecimalFloatingPoint, n::Integer)
+
+function Base.parse(::Type{T}, s::AbstractString) where {T<:DecimalFloatingPoint}
+    x = _parse(T, s)
+    if isnan(x) && !isnanstr(s)
+        throw(ArgumentError("invalid number format $s"))
+    end
+    return @xchk(x, nothing)
+end
+
+function Base.tryparse(::Type{T}, s::AbstractString) where {T<:DecimalFloatingPoint}
+    x = _parse(T, s)
+    if isnan(x) && !isnanstr(s)
+        @xchk(x, nothing)
+        return nothing
+    end
+    return @xchk(x, nothing)
+end
+
+Base.tryparse_internal(::Type{T}, s::AbstractString, startpos::Int, endpos::Int) where {T<:DecimalFloatingPoint} =
+    tryparse(T, @view s[startpos:endpos])
+
+_parse(::Type{T}, s::AbstractString) where {T<:DecimalFloatingPoint} =
+    _parse(T, String(s)) # Intel only supports NUL-terminated strings
 
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
@@ -296,31 +319,14 @@ for w in (32,64,128)
     # hack: we need an internal parsing function that doesn't check exceptions, since
     # flags isn't defined until __init__ runs.  Similarly for nextfloat/prevfloat
     @eval begin
-        _parse(::Type{$BID}, s::AbstractString) =
-            ccall(($(bidsym(w,"from_string")), libbid), $BID, (Ptr{UInt8},Cuint,Ref{Cuint}), s, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid()))
+        _parse(::Type{$BID}, s::String) =
+            ccall(($(bidsym(w,"from_string")), libbid), $BID, (Cstring,Cuint,Ref{Cuint}), s, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid()))
         _nextfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, pinf128, RefArray(flags, Threads.threadid()))
         _prevfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, minf128, RefArray(flags, Threads.threadid()))
         _sub(x::$BID, y::$BID) = ccall(($(bidsym(w,"sub")), libbid), $BID, ($BID,$BID,Cuint,Ref{Cuint}), x, y, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid()))
     end
 
     @eval begin
-        function Base.parse(::Type{$BID}, s::AbstractString)
-            x = _parse($BID, s)
-            if isnan(x) && !isnanstr(s)
-                throw(ArgumentError("invalid number format $s"))
-            end
-            return @xchk(x, nothing)
-        end
-
-        function Base.tryparse(::Type{$BID}, s::AbstractString)
-            x = _parse($BID, s)
-            if isnan(x) && !isnanstr(s)
-                @xchk(x, nothing)
-                return nothing
-            end
-            return @xchk(x, nothing)
-        end
-
         $BID(x::AbstractString) = parse($BID, x)
 
         function $BID(x::AbstractString, mode::RoundingMode)

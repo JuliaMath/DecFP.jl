@@ -489,6 +489,9 @@ end
 @test parse(Dec64, "3935767060.093896713") == d64"3.935767060093897e9" ==
       Dec64(d128"3935767060.093896713")
 
+# issue 124
+@test parse(Complex{Dec64}, "1.0+2.0im") == Complex(d"1.0", d"2.0")
+
 # issue #139
 @test convert(Dec64, big"2.5") == d"2.5"
 
