@@ -305,7 +305,7 @@ function Base.tryparse(::Type{T}, s::AbstractString) where {T<:DecimalFloatingPo
 end
 
 Base.tryparse_internal(::Type{T}, s::AbstractString, startpos::Int, endpos::Int) where {T<:DecimalFloatingPoint} =
-    tryparse(T, @view s[startpos:endpos])
+    tryparse(T, s[startpos:endpos]) # use a substring once Intel supports it?
 
 _parse(::Type{T}, s::AbstractString) where {T<:DecimalFloatingPoint} =
     _parse(T, String(s)) # Intel only supports NUL-terminated strings
