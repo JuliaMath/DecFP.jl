@@ -109,10 +109,23 @@ Base.Rounding.rounding(::Type{T}) where {T<:DecimalFloatingPoint} =
 Base.Rounding.setrounding(::Type{T}, r::RoundingMode) where {T<:DecimalFloatingPoint} =
     Base.Rounding.setrounding_raw(T, convert(DecFPRoundingMode, r))
 
-primitive type Dec32 <: DecimalFloatingPoint 32 end
-primitive type Dec64 <: DecimalFloatingPoint 64 end
-Dec32(x::Number) = convert(Dec32, x)
-Dec64(x::Number) = convert(Dec64, x)
+@static if Sys.ARCH == :arm64
+    struct Dec32 <: DecimalFloatingPoint
+        x::UInt32
+        Dec32(x::Number) = convert(Dec32, x)
+        Base.reinterpret(::Type{Dec32}, x::UInt32) = new(x)
+    end
+    struct Dec64 <: DecimalFloatingPoint
+        x::UInt64
+        Dec64(x::Number) = convert(Dec64, x)
+        Base.reinterpret(::Type{Dec64}, x::UInt64) = new(x)
+    end
+else
+    primitive type Dec32 <: DecimalFloatingPoint 32 end
+    primitive type Dec64 <: DecimalFloatingPoint 64 end
+    Dec32(x::Number) = convert(Dec32, x)
+    Dec64(x::Number) = convert(Dec64, x)
+end
 struct Dec128 <: DecimalFloatingPoint
     x::UInt128
     Dec128(x::Number) = convert(Dec128, x)
