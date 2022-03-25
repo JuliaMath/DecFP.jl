@@ -137,13 +137,13 @@ for w in (32,64,128)
         sb = signbit(sign) ? one($Ti) << ($w - 1) : zero($Ti)
         e = exponent + bias
         s = $Ti(abs(significand))
-        while s >= $Ti(maxintfloat($BID))
+        while s >= _int_maxintfloat($BID)
             q, r = divrem(s, $Ti(10))
             r != 0 && throw(InexactError(Symbol($BID), $BID, (sign, significand, exponent)))
             s = q
             e += 1
         end
-        while e > bemax && s < $Ti(maxintfloat($BID)) / 10
+        while e > bemax && s < _int_maxintfloat($BID) / 10
             s *= $Ti(10)
             e -= 1
         end
@@ -760,6 +760,9 @@ Base.floatmin(::Type{Dec128}) = reinterpret(Dec128, 0x00420000000000000000000000
 Base.maxintfloat(::Type{Dec32}) = reinterpret(Dec32, 0x36000001) # Dec32("1e7")
 Base.maxintfloat(::Type{Dec64}) = reinterpret(Dec64, 0x33c0000000000001) # Dec64("1e16")
 Base.maxintfloat(::Type{Dec128}) = reinterpret(Dec128, 0x30840000000000000000000000000001) # Dec128("1e34")
+_int_maxintfloat(::Type{Dec32}) = 0x00989680
+_int_maxintfloat(::Type{Dec64}) = 0x002386f26fc10000
+_int_maxintfloat(::Type{Dec128}) = 0x0001ed09bead87c0378d8e6400000000
 
 Base.convert(::Type{F}, x::Union{Int8,UInt8,Int16,UInt16}) where {F<:DecimalFloatingPoint} = F(Int32(x))
 Base.convert(::Type{F}, x::Integer) where {F<:DecimalFloatingPoint} = F(string(x))
