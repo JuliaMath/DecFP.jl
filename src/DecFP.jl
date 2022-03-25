@@ -109,7 +109,7 @@ Base.Rounding.rounding(::Type{T}) where {T<:DecimalFloatingPoint} =
 Base.Rounding.setrounding(::Type{T}, r::RoundingMode) where {T<:DecimalFloatingPoint} =
     Base.Rounding.setrounding_raw(T, convert(DecFPRoundingMode, r))
 
-@static if isdefined(Base, :BinaryPlatforms) && Base.BinaryPlatforms.arch(Base.BinaryPlatforms.HostPlatform()) == "aarch64"
+@static if Sys.ARCH == :arm64 || Sys.ARCH == :aarch64 || (isdefined(Base, :BinaryPlatforms) && Base.BinaryPlatforms.arch(Base.BinaryPlatforms.HostPlatform()) == "aarch64")
     # primitive types aren't working yet on ARM64 for some reason?
     struct Dec32 <: DecimalFloatingPoint
         x::UInt32
