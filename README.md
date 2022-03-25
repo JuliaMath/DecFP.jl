@@ -13,7 +13,7 @@ different from packages such as
 [Decimals.jl](https://github.com/tinybike/Decimals.jl), which provide
 *arbitrary-precision* decimal types analogous to `BigFloat`: arbitrary
 precision types are very flexible, but fixed-precision types such
-as those in DecFP are much faster (though still about 100x slower than
+as those in DecFP are much faster (though still about 50x slower than
 the hardware binary floating-point types `Float32` and `Float64`) and
 more memory-efficient (an array of `Dec64` values has exactly the
 same memory footprint as an array of `Float64` values).
