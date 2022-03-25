@@ -503,3 +503,8 @@ end
     @test precision(Dec64, base=100) == 8
     @test precision(d32"1.2345", base=10) == 7
 end
+
+# PR #155
+@test DecFP._int_maxintfloat(Dec32) === UInt32(maxintfloat(Dec32))
+@test DecFP._int_maxintfloat(Dec64) === UInt64(maxintfloat(Dec64))
+@test DecFP._int_maxintfloat(Dec128) === UInt128(maxintfloat(Dec128))
