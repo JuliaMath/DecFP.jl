@@ -109,7 +109,7 @@ Base.Rounding.rounding(::Type{T}) where {T<:DecimalFloatingPoint} =
 Base.Rounding.setrounding(::Type{T}, r::RoundingMode) where {T<:DecimalFloatingPoint} =
     Base.Rounding.setrounding_raw(T, convert(DecFPRoundingMode, r))
 
-@static if Sys.ARCH == :arm64
+@static if isdefined(Base, :BinaryPlatforms) && Base.BinaryPlatforms.arch(Base.BinaryPlatforms.HostPlatform()) == "aarch64"
     struct Dec32 <: DecimalFloatingPoint
         x::UInt32
         Dec32(x::Number) = convert(Dec32, x)
