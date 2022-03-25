@@ -143,7 +143,7 @@ for w in (32,64,128)
             s = q
             e += 1
         end
-        while e > bemax && s < _int_maxintfloat($BID) / 10
+        while e > bemax && s < _int_maxintfloat($BID) ÷ $Ti(10)
             s *= $Ti(10)
             e -= 1
         end
