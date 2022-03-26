@@ -509,6 +509,15 @@ for r in (RoundUp, RoundDown, RoundNearest)
     @test BigFloat(d"1.2", r) == BigFloat("1.2", r)
 end
 
+# issue #131
+@test Dec32(10000000) == 10000000
+@test Dec32(10000000) != 10000001
+@test Dec32(10000000) <= 10000000
+@test Dec32(10000000) <= 10000001
+@test Dec32(10000000) < 10000001
+@test Dec32(10000000) >= 10000000-1
+@test Dec32(10000000) > 10000000-1
+
 # PR #155
 @test DecFP._int_maxintfloat(Dec32) === UInt32(maxintfloat(Dec32))
 @test DecFP._int_maxintfloat(Dec64) === UInt64(maxintfloat(Dec64))

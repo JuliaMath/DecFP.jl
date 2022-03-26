@@ -640,6 +640,10 @@ for w in (32,64,128)
                 Base.convert(::Type{$Ti′}, x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), InexactError, :convert, $BID, x)
                 Base.$(Symbol("$Ti′"))(x::$BID) = convert($Ti′, x)
             end
+
+            if w′ < w # integer conversion is exact
+                @eval Base.:(==)(dec::$BID, int::$Ti′) = dec == $BID(int)
+            end
         end
     end
 
@@ -754,16 +758,18 @@ function Base.:(==)(dec::DecimalFloatingPoint, rat::Rational)
     end
 end
 
-Base.:(==)(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec == T(flt, RoundUp) == T(flt, RoundDown)
-Base.:>(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec > T(flt, RoundDown)
-Base.:<(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec < T(flt, RoundUp)
-Base.:(>=)(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec >= T(flt, RoundUp)
-Base.:(<=)(dec::T, flt::Union{Float16,Float32,Float64}) where {T<:DecimalFloatingPoint} = dec <= T(flt, RoundDown)
-Base.:(==)(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = dec == flt
-Base.:>(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = dec < flt
-Base.:<(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = dec > flt
-Base.:(>=)(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = dec <= flt
-Base.:(<=)(flt::Union{Float16,Float32,Float64}, dec::T) where {T<:DecimalFloatingPoint} = dec >= flt
+Base.:(==)(dec::T, flt::Union{Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec == T(flt, RoundUp) == T(flt, RoundDown)
+Base.:>(dec::T, flt::Union{Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec > T(flt, RoundDown)
+Base.:<(dec::T, flt::Union{Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec < T(flt, RoundUp)
+Base.:(>=)(dec::T, flt::Union{Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec >= T(flt, RoundUp)
+Base.:(<=)(dec::T, flt::Union{Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec <= T(flt, RoundDown)
+
+# canonicalize comparison order:
+Base.:(==)(flt::Union{Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec == flt
+Base.:>(flt::Union{Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec < flt
+Base.:<(flt::Union{Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec > flt
+Base.:(>=)(flt::Union{Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec <= flt
+Base.:(<=)(flt::Union{Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec >= flt
 
 # used for next/prevfloat:
 const pinf128 = _parse(Dec128, "+Inf")
