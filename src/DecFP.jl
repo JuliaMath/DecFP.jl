@@ -800,6 +800,9 @@ promote_rule(::Type{F}, ::Type{T}) where {F<:DecimalFloatingPoint,T<:Union{Int8,
 Base.convert(::Type{F}, x::AbstractFloat) where {F<:DecimalFloatingPoint} = F(string(x))
 Base.convert(::Type{F}, x::F) where {F<:DecimalFloatingPoint} = x # don't call AbstractFloat method!
 
+Base.BigFloat(x::DecimalFloatingPoint) = BigFloat(string(x))
+Base.BigFloat(x::DecimalFloatingPoint, r::RoundingMode; precision::Integer=Base.MPFR.DEFAULT_PRECISION[]) = BigFloat(string(x), r; precision=precision)
+
 # so that mathconsts get promoted to Dec32, not Dec64, like Float32
 promote_rule(::Type{Irrational{s}}, ::Type{F}) where {s,F<:DecimalFloatingPoint} = F
 promote_rule(::Type{Irrational{s}}, T::Type{Complex{F}}) where {s,F<:DecimalFloatingPoint} = T
