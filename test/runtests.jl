@@ -504,6 +504,11 @@ end
     @test precision(d32"1.2345", base=10) == 7
 end
 
+@test big(d"1.2") == BigFloat(d"1.2")
+for r in (RoundUp, RoundDown, RoundNearest)
+    @test BigFloat(d"1.2", r) == BigFloat("1.2", r)
+end
+
 # PR #155
 @test DecFP._int_maxintfloat(Dec32) === UInt32(maxintfloat(Dec32))
 @test DecFP._int_maxintfloat(Dec64) === UInt64(maxintfloat(Dec64))
