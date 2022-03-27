@@ -313,7 +313,7 @@ for T in (Dec32, Dec64, Dec128)
     @test T(7) / T(100) == 7//100
     @test T(7) / T(300) != 7//300
 
-    for Tf in (Float64, Float32, Float16)
+    for Tf in (BigFloat, Float64, Float32, Float16)
         @test parse(T, "0.1") != parse(Tf, "0.1")
         @test parse(Tf, "0.1") != parse(T, "0.1")
         @test parse(T, "0.7") != parse(Tf, "0.7")
@@ -492,6 +492,26 @@ end
 # issue 124
 @test parse(Complex{Dec64}, "1.0+2.0im") == Complex(d"1.0", d"2.0")
 @test parse(Dec64, SubString("1.3x", 1,3)) == d"1.3"
+
+#issue 122
+@test Dec32(π) != π
+@test Dec32(π) > π
+@test Dec32(π) >= π
+@test π != Dec32(π)
+@test π < Dec32(π)
+@test π <= Dec32(π)
+@test Dec64(π) != π
+@test Dec64(π) < π
+@test Dec64(π) <= π
+@test π != Dec64(π)
+@test π > Dec64(π)
+@test π >= Dec64(π)
+@test Dec128(π) != π
+@test Dec128(π) > π
+@test Dec128(π) >= π
+@test π != Dec128(π)
+@test π < Dec128(π)
+@test π <= Dec128(π)
 
 # issue #139
 @test convert(Dec64, big"2.5") == d"2.5"
