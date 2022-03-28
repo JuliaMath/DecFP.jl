@@ -226,6 +226,8 @@ for w in (32,64,128)
     ```
     """ $BID
 
+    @eval $BID(x::AbstractIrrational, r::RoundingMode) = $BID(string(BigFloat(x, precision=256)), r)
+
     # fix method ambiguities:
     @eval $BID(x::Rational{T}) where {T} = convert($BID, x)
 
@@ -758,18 +760,18 @@ function Base.:(==)(dec::DecimalFloatingPoint, rat::Rational)
     end
 end
 
-Base.:(==)(dec::T, flt::Union{Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec == T(flt, RoundUp) == T(flt, RoundDown)
-Base.:>(dec::T, flt::Union{Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec > T(flt, RoundDown)
-Base.:<(dec::T, flt::Union{Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec < T(flt, RoundUp)
-Base.:(>=)(dec::T, flt::Union{Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec >= T(flt, RoundUp)
-Base.:(<=)(dec::T, flt::Union{Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec <= T(flt, RoundDown)
+Base.:(==)(dec::T, num::Union{BigFloat,Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec == T(num, RoundUp) == T(num, RoundDown)
+Base.:>(dec::T, num::Union{BigFloat,Float16,Float32,Float64,Integer,AbstractIrrational}) where {T<:DecimalFloatingPoint} = dec > T(num, RoundDown)
+Base.:<(dec::T, num::Union{BigFloat,Float16,Float32,Float64,Integer,AbstractIrrational}) where {T<:DecimalFloatingPoint} = dec < T(num, RoundUp)
+Base.:(>=)(dec::T, num::Union{BigFloat,Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec >= T(num, RoundUp)
+Base.:(<=)(dec::T, num::Union{BigFloat,Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec <= T(num, RoundDown)
 
 # canonicalize comparison order:
-Base.:(==)(flt::Union{Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec == flt
-Base.:>(flt::Union{Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec < flt
-Base.:<(flt::Union{Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec > flt
-Base.:(>=)(flt::Union{Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec <= flt
-Base.:(<=)(flt::Union{Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec >= flt
+Base.:(==)(num::Union{BigFloat,Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec == num
+Base.:>(num::Union{BigFloat,Float16,Float32,Float64,Integer,AbstractIrrational}, dec::T) where {T<:DecimalFloatingPoint} = dec < num
+Base.:<(num::Union{BigFloat,Float16,Float32,Float64,Integer,AbstractIrrational}, dec::T) where {T<:DecimalFloatingPoint} = dec > num
+Base.:(>=)(num::Union{BigFloat,Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec <= num
+Base.:(<=)(num::Union{BigFloat,Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec >= num
 
 # used for next/prevfloat:
 const pinf128 = _parse(Dec128, "+Inf")
