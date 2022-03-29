@@ -106,6 +106,10 @@ for T in (Dec32, Dec64, Dec128)
     @test T("0.9999999999999999999999999999999999999999", RoundUp) == T(1)
     @test T("0.9999999999999999999999999999999999999999", RoundDown) == prevfloat(T(1))
 
+    # issue 134
+    @test T(string(DecFP._int_maxintfloat(T)), RoundUp) == maxintfloat(T)
+    @test T("1.0000000000000000000000000000000000000000", RoundUp) == T(1)
+
     @test T(0, 0, 0) == T(0)
     @test T(1, 0, 10) == T(0)
     @test isequal(T(-1, 0, 0), T(-0.0))
