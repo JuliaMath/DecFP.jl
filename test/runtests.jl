@@ -461,7 +461,7 @@ for T in (Dec32, Dec64, Dec128)
     # issue 160
     io = IOBuffer()
     write(io, one(T))
-    @test read(IOBuffer(take!(io)), T) == one(T)
+    @test read(IOBuffer(take!(io)), T) === one(T)
 end
 
 @test DecFP.flags[Threads.threadid()] == 0
