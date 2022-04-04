@@ -140,8 +140,6 @@ struct Dec128 <: DecimalFloatingPoint
 end
 Base.reinterpret(::Type{UInt128}, x::Dec128) = x.x
 Base.bswap(x::Dec128) = reinterpret(Dec128, bswap(x.x))
-Base.write(s::IO, x::Union{Dec32, Dec64, Dec128}) = write(s, Ref(x))
-Base.read(s::IO, T::Union{Type{Dec32}, Type{Dec64}, Type{Dec128}}) = read!(s, Ref{T}(zero(T)))[]::T
 
 for w in (32,64,128)
     BID = Symbol(string("Dec",w))
@@ -651,6 +649,8 @@ for w in (32,64,128)
         end
     end
 
+    @eval Base.write(io::IO, x::$BID) = write(io, reinterpret($Ti, x))
+    @eval Base.read(io::IO, x::Type{$BID}) = reinterpret($BID, read(io, $Ti))
     @eval Base.convert(::Type{Float16}, x::$BID) = convert(Float16, convert(Float32, x))
     @eval Base.Float16(x::$BID) = convert(Float16, x)
 end # widths w
