@@ -649,6 +649,8 @@ for w in (32,64,128)
         end
     end
 
+    @eval Base.write(io::IO, x::$BID) = write(io, reinterpret($Ti, x))
+    @eval Base.read(io::IO, x::Type{$BID}) = reinterpret($BID, read(io, $Ti))
     @eval Base.convert(::Type{Float16}, x::$BID) = convert(Float16, convert(Float32, x))
     @eval Base.Float16(x::$BID) = convert(Float16, x)
 end # widths w
