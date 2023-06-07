@@ -113,14 +113,12 @@ Base.Rounding.setrounding(::Type{T}, r::RoundingMode) where {T<:DecimalFloatingP
     # primitive types aren't working yet on ARM64 for some reason?
     struct Dec32 <: DecimalFloatingPoint
         x::UInt32
-        Dec32(x::Number) = convert(Dec32, x)
         Base.reinterpret(::Type{Dec32}, x::UInt32) = new(x)
     end
     Base.reinterpret(::Type{UInt32}, x::Dec32) = x.x
     Base.bswap(x::Dec32) = reinterpret(Dec32, bswap(x.x))
     struct Dec64 <: DecimalFloatingPoint
         x::UInt64
-        Dec64(x::Number) = convert(Dec64, x)
         Base.reinterpret(::Type{Dec64}, x::UInt64) = new(x)
     end
     Base.reinterpret(::Type{UInt64}, x::Dec64) = x.x
@@ -128,14 +126,11 @@ Base.Rounding.setrounding(::Type{T}, r::RoundingMode) where {T<:DecimalFloatingP
 else
     primitive type Dec32 <: DecimalFloatingPoint 32 end
     primitive type Dec64 <: DecimalFloatingPoint 64 end
-    Dec32(x::Number) = convert(Dec32, x)
-    Dec64(x::Number) = convert(Dec64, x)
     Base.bswap(x::Dec32) = reinterpret(Dec32, bswap(reinterpret(UInt32, x)))
     Base.bswap(x::Dec64) = reinterpret(Dec64, bswap(reinterpret(UInt64, x)))
 end
 struct Dec128 <: DecimalFloatingPoint
     x::UInt128
-    Dec128(x::Number) = convert(Dec128, x)
     Base.reinterpret(::Type{Dec128}, x::UInt128) = new(x)
 end
 Base.reinterpret(::Type{UInt128}, x::Dec128) = x.x
@@ -228,8 +223,14 @@ for w in (32,64,128)
 
     @eval $BID(x::AbstractIrrational, r::RoundingMode) = $BID(string(BigFloat(x, precision=256)), r)
 
-    # fix method ambiguities:
-    @eval $BID(x::Rational{T}) where {T} = convert($BID, x)
+    @eval $BID(x::Union{Int8,UInt8,Int16,UInt16}) = $BID(Int32(x))
+    @eval $BID(x::Float16) = $BID(Float32(x))
+
+    @eval $BID(x::Rational{T}) where {T} = $BID(x.num) / $BID(x.den)
+
+    # fallback conversions via strings
+    @eval $BID(x::AbstractFloat) = $BID(string(x))
+    @eval $BID(x::Integer) = $BID(string(x))
 
     @eval _precision(::Type{$BID}) = $(w == 32 ? 7 : w == 64 ? 16 : 34)
 end
@@ -588,15 +589,14 @@ for w in (32,64,128)
     for Tf in (Float32,Float64)
         bT = string("binary",sizeof(Tf)*8)
         @eval begin
-            Base.convert(::Type{$Tf}, x::$BID) = nox(ccall(($(bidsym(w,"to_",bT)), libbid), $Tf, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())))
-            Base.$(Symbol("$Tf"))(x::$BID) = convert($Tf, x)
-            Base.convert(::Type{$BID}, x::$Tf) = nox(ccall(($(string("__",bT,"_to_","bid",w)), libbid), $BID, ($Tf,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())))
+            Base.$(Symbol("$Tf"))(x::$BID) = nox(ccall(($(bidsym(w,"to_",bT)), libbid), $Tf, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())))
+            $BID(x::$Tf) = nox(ccall(($(string("__",bT,"_to_","bid",w)), libbid), $BID, ($Tf,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())))
         end
     end
 
     for c in (:π, :e, :ℯ, :γ, :catalan, :φ)
         @eval begin
-            Base.convert(::Type{$BID}, ::Irrational{$(QuoteNode(c))}) = $(_parse(T, setprecision(256) do
+            $BID(::Irrational{$(QuoteNode(c))}) = $(_parse(T, setprecision(256) do
                                                                                       string(BigFloat(getfield(MathConstants, c)))
                                                                                   end))
         end
@@ -610,9 +610,9 @@ for w in (32,64,128)
             @eval promote_rule(::Type{$BID}, ::Type{$BID′}) = $BID
         end
         if w > w′
-            @eval Base.convert(::Type{$BID}, x::$BID′) = @xchk(ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), nothing)
+            @eval $BID(x::$BID′) = @xchk(ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), nothing)
         elseif w < w′
-            @eval Base.convert(::Type{$BID}, x::$BID′) = @xchk(ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())), nothing)
+            @eval $BID(x::$BID′) = @xchk(ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())), nothing)
         end
 
         # promote binary*decimal -> decimal, for consistency with other operations above
@@ -623,9 +623,9 @@ for w in (32,64,128)
             for (i′, i′str) in (("Int$w′", "int$w′"), ("UInt$w′", "uint$w′"))
                 Ti′ = eval(Symbol(i′))
                 if w > w′
-                    @eval Base.convert(::Type{$BID}, x::$Ti′) = nox(ccall(($(bidsym(w,"from_",i′str)), libbid), $BID, ($Ti′,Ref{Cuint}), x, RefArray(flags, Threads.threadid())))
+                    @eval $BID(x::$Ti′) = nox(ccall(($(bidsym(w,"from_",i′str)), libbid), $BID, ($Ti′,Ref{Cuint}), x, RefArray(flags, Threads.threadid())))
                 else
-                    @eval Base.convert(::Type{$BID}, x::$Ti′) = nox(ccall(($(bidsym(w,"from_",i′str)), libbid), $BID, ($Ti′,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())))
+                    @eval $BID(x::$Ti′) = nox(ccall(($(bidsym(w,"from_",i′str)), libbid), $BID, ($Ti′,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())))
                 end
             end
         end
@@ -639,8 +639,7 @@ for w in (32,64,128)
                 Base.floor(::Type{$Ti′}, x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), InexactError, :floor, $BID, x, mask=INVALID | OVERFLOW)
                 Base.ceil(::Type{$Ti′}, x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xceil")), libbid), $Ti′, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), InexactError, :ceil, $BID, x, mask=INVALID | OVERFLOW)
                 Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xrninta")), libbid), $Ti′, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
-                Base.convert(::Type{$Ti′}, x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), InexactError, :convert, $BID, x)
-                Base.$(Symbol("$Ti′"))(x::$BID) = convert($Ti′, x)
+                Base.$(Symbol("$Ti′"))(x::$BID) = (x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), InexactError, :convert, $BID, x)
             end
 
             if w′ < w # integer conversion is exact
@@ -651,8 +650,7 @@ for w in (32,64,128)
 
     @eval Base.write(io::IO, x::$BID) = write(io, reinterpret($Ti, x))
     @eval Base.read(io::IO, x::Type{$BID}) = reinterpret($BID, read(io, $Ti))
-    @eval Base.convert(::Type{Float16}, x::$BID) = convert(Float16, convert(Float32, x))
-    @eval Base.Float16(x::$BID) = convert(Float16, x)
+    @eval Base.Float16(x::$BID) = Float16(Float32(x))
 end # widths w
 
 Base.round(x::DecimalFloatingPoint, ::RoundingMode{:FromZero}) = signbit(x) ? floor(x) : ceil(x)
@@ -799,16 +797,8 @@ _int_maxintfloat(::Type{Dec32}) = 0x00989680
 _int_maxintfloat(::Type{Dec64}) = 0x002386f26fc10000
 _int_maxintfloat(::Type{Dec128}) = 0x0001ed09bead87c0378d8e6400000000
 
-Base.convert(::Type{F}, x::Union{Int8,UInt8,Int16,UInt16}) where {F<:DecimalFloatingPoint} = F(Int32(x))
-Base.convert(::Type{F}, x::Integer) where {F<:DecimalFloatingPoint} = F(string(x))
-Base.convert(::Type{F}, x::Rational) where {F<:DecimalFloatingPoint} = F(x.num) / F(x.den)
-Base.convert(::Type{F}, x::Float16) where {F<:DecimalFloatingPoint} = F(Float32(x))
 promote_rule(::Type{F}, ::Type{Float16}) where {F<:DecimalFloatingPoint} = F
 promote_rule(::Type{F}, ::Type{T}) where {F<:DecimalFloatingPoint,T<:Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Int128,UInt128}} = F
-
-# fallback floating-point conversion via strings
-Base.convert(::Type{F}, x::AbstractFloat) where {F<:DecimalFloatingPoint} = F(string(x))
-Base.convert(::Type{F}, x::F) where {F<:DecimalFloatingPoint} = x # don't call AbstractFloat method!
 
 Base.BigFloat(x::DecimalFloatingPoint) = BigFloat(string(x))
 Base.BigFloat(x::DecimalFloatingPoint, r::RoundingMode; precision::Integer=Base.MPFR.DEFAULT_PRECISION[]) = BigFloat(string(x), r; precision=precision)
