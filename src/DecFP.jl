@@ -668,19 +668,16 @@ for (f) in (:trunc, :floor, :ceil)
     end
 end
 
-Base.convert(::Type{Signed}, x::DecimalFloatingPoint) = convert(Int, x)
-Base.convert(::Type{Unsigned}, x::DecimalFloatingPoint) = convert(UInt, x)
-Base.convert(::Type{Integer}, x::DecimalFloatingPoint) = convert(Int, x)
+Signed(x::DecimalFloatingPoint) = Int(x)
+Unsigned(x::DecimalFloatingPoint) = UInt(x)
+Integer(x::DecimalFloatingPoint) = Int(x)
 
-function Base.convert(::Type{I}, x::DecimalFloatingPoint) where {I<:Integer}
+function (::Type{I})(x::DecimalFloatingPoint) where {I<:Integer}
     x != trunc(x) && throw(InexactError(:convert, I, x))
     typemin(I) <= x <= typemax(I) || throw(InexactError(:convert, I, x))
     _, s, e = sigexp(x)
     return I(flipsign(s * I(10)^e, x))
 end
-
-Base.Int128(x::DecimalFloatingPoint) = convert(Int128, x)
-Base.UInt128(x::DecimalFloatingPoint) = convert(UInt128, x)
 
 Base.round(::Type{T}, x::DecimalFloatingPoint) where {T<:Integer} = convert(T, round(x))
 Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:Nearest}) where {T<:Integer} = convert(T, round(x, RoundNearest))
