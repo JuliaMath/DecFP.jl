@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/JuliaMath/DecFP.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/JuliaMath/DecFP.jl/actions/workflows/CI.yml)
 [![Coverage Status](https://coveralls.io/repos/github/JuliaMath/DecFP.jl/badge.svg?branch=master)](https://coveralls.io/github/JuliaMath/DecFP.jl?branch=master)
+[![codecov](https://codecov.io/github/JuliaMath/DecFP.jl/graph/badge.svg?token=9thK9TVT9V)](https://codecov.io/github/JuliaMath/DecFP.jl)
 
 The DecFP package is a Julia wrapper around the [Intel Decimal
 Floating-Point Math
