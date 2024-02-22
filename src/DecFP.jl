@@ -807,6 +807,8 @@ promote_rule(::Type{Irrational{s}}, T::Type{Complex{F}}) where {s,F<:DecimalFloa
 Base.widen(::Type{Dec32}) = Dec64
 Base.widen(::Type{Dec64}) = Dec128
 
+Printf.tofloat(x::DecimalFloatingPoint) = BigFloat(x)
+
 macro d_str(s, flags...) parse(Dec64, s) end
 macro d32_str(s, flags...) parse(Dec32, s) end
 macro d64_str(s, flags...) parse(Dec64, s) end
