@@ -184,6 +184,9 @@ for T in (Dec32, Dec64, Dec128)
 
     @test @sprintf("%.2f %.4f", T("12.34567"), 9.87) == "12.35 9.8700"
 
+    # issue #178
+    @test @sprintf("%.36f", T("0.1")) == "0.100000000000000000000000000000000000"
+
     x,y,z = 1.5, -3.25, 0.0625 # exactly represented in binary
     xd = T(x); yd = T(y); zd = T(z)
 
