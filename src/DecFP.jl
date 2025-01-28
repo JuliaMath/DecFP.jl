@@ -54,7 +54,7 @@ function Base.convert(::Type{RoundingMode}, r::DecFPRoundingMode)
     elseif r == DecFPRoundFromZero
         return RoundFromZero
     else
-        throw(ArgumentError("invalid DecFP rounding mode code: $c"))_s_
+        throw(ArgumentError("invalid DecFP rounding mode code: $c"))
     end
 end
 
