@@ -56,19 +56,15 @@ function Base.convert(::Type{RoundingMode}, r::DecFPRoundingMode)
     elseif r == DecFPRoundFromZero
         return RoundFromZero
     else
-        throw(ArgumentError("invalid DecFP rounding mode code: $c"))
+        throw(ArgumentError("invalid DecFP rounding mode code: $c"))_s_
     end
 end
-
-const roundingmode = [DecFPRoundNearest]
 
 # global vectors must be initialized at runtime (via __init__)
 function __init__()
     resize!(_buffer, Threads.nthreads())
-    resize!(roundingmode, Threads.nthreads())
     for i = 1:Threads.nthreads()
         _buffer[i] = fill(0x00, 1024)
-        roundingmode[i] = DecFPRoundNearest
     end
 end
 
@@ -84,15 +80,21 @@ bidsym(w,s...) = string("__bid", w, "_", s...)
 
 abstract type DecimalFloatingPoint <: AbstractFloat end
 
-Base.Rounding.rounding_raw(::Type{T}) where {T<:DecimalFloatingPoint} =
-    roundingmode[Threads.threadid()]
+# fixme: make per-type? is task-local worth it or should we just make it global?
+const _ROUNDINGMODE_KEY = :DecFP_roundingmode_abb78e082af23329 # unique key
+_roundingmode() = get!(task_local_storage(), _ROUNDINGMODE_KEY, DecFPRoundNearest)::DecFPRoundingMode
+Base.Rounding.rounding_raw(::Type{T}) where {T<:DecimalFloatingPoint} = _roundingmode()
 Base.Rounding.setrounding_raw(::Type{T}, r::DecFPRoundingMode) where {T<:DecimalFloatingPoint} =
-    roundingmode[Threads.threadid()] = r
+    task_local_storage(_ROUNDINGMODE_KEY, r)
+Base.Rounding.setrounding_raw(f::Function, ::Type{T}, r::DecFPRoundingMode) where {T<:DecimalFloatingPoint} =
+    task_local_storage(f, _ROUNDINGMODE_KEY, r)
 
 Base.Rounding.rounding(::Type{T}) where {T<:DecimalFloatingPoint} =
     convert(RoundingMode, Base.Rounding.rounding_raw(T))
 Base.Rounding.setrounding(::Type{T}, r::RoundingMode) where {T<:DecimalFloatingPoint} =
     Base.Rounding.setrounding_raw(T, convert(DecFPRoundingMode, r))
+Base.Rounding.setrounding(f::Function, ::Type{T}, r::RoundingMode) where {T<:DecimalFloatingPoint} =
+    Base.Rounding.setrounding_raw(f, T, convert(DecFPRoundingMode, r))
 
 @static if Sys.ARCH == :arm64 || Sys.ARCH == :aarch64 || (isdefined(Base, :BinaryPlatforms) && Base.BinaryPlatforms.arch(Base.BinaryPlatforms.HostPlatform()) == "aarch64")
     # primitive types aren't working yet on ARM64 for some reason?
@@ -330,7 +332,7 @@ for w in (32,64,128)
     Tsi = eval(Symbol(string("Int",w)))
     T = eval(BID)
 
-    @eval _parse(::Type{$BID}, s::String) = ccall(($(bidsym(w,"from_string")), libbid), $BID, (Cstring,Cuint,Ref{Cuint}), s, roundingmode[Threads.threadid()], zero(Cuint))
+    @eval _parse(::Type{$BID}, s::String) = ccall(($(bidsym(w,"from_string")), libbid), $BID, (Cstring,Cuint,Ref{Cuint}), s, _roundingmode(), zero(Cuint))
 
     @eval begin
         $BID(x::AbstractString) = parse($BID, x)
@@ -494,7 +496,7 @@ for w in (32,64,128)
             return signbit(x) ? -1 : 1, s, e
         end
 
-        Base.fma(x::$BID, y::$BID, z::$BID) = ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID,Cuint,Ref{Cuint}), x, y, z, roundingmode[Threads.threadid()], zero(Cuint))
+        Base.fma(x::$BID, y::$BID, z::$BID) = ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID,Cuint,Ref{Cuint}), x, y, z, _roundingmode(), zero(Cuint))
         Base.muladd(x::$BID, y::$BID, z::$BID) = fma(x,y,z) # faster than x+y*z
 
         Base.one(::Union{Type{$BID},$BID}) = $(parse(T, "1"))
@@ -505,7 +507,7 @@ for w in (32,64,128)
 
         # variants that save the exception flag
         _nextfloat(x::$BID, flag::Ref{Cuint}) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, pinf128, flag)
-        _sub(x::$BID, y::$BID, flag::Ref{Cuint}) = ccall(($(bidsym(w,"sub")), libbid), $BID, ($BID,$BID,Cuint,Ref{Cuint}), x, y, roundingmode[Threads.threadid()], flag)
+        _sub(x::$BID, y::$BID, flag::Ref{Cuint}) = ccall(($(bidsym(w,"sub")), libbid), $BID, ($BID,$BID,Cuint,Ref{Cuint}), x, y, _roundingmode(), flag)
 
         Base.nextfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, pinf128, zero(Cuint))
         Base.prevfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, minf128, zero(Cuint))
@@ -513,7 +515,7 @@ for w in (32,64,128)
 
         # the meaning of the exponent is different than for binary FP: it is 10^n, not 2^n:
         exponent10(x::$BID) = ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,Ref{Cuint}), x, zero(Cuint))
-        ldexp10(x::$BID, n::Integer) = ccall(($(bidsym(w,"ldexp")), libbid), $BID, ($BID,Cint,Cuint,Ref{Cuint}), x, n, roundingmode[Threads.threadid()], zero(Cuint))
+        ldexp10(x::$BID, n::Integer) = ccall(($(bidsym(w,"ldexp")), libbid), $BID, ($BID,Cint,Cuint,Ref{Cuint}), x, n, _roundingmode(), zero(Cuint))
     end
 
     for (f,c) in ((:isnan,"isNaN"), (:isinf,"isInf"), (:isfinite,"isFinite"), (:issubnormal,"isSubnormal"))
@@ -521,12 +523,12 @@ for w in (32,64,128)
     end
 
     for (f,c) in ((:+,"add"), (:-,"sub"), (:*,"mul"), (:/, "div"), (:hypot,"hypot"), (:atan,"atan2"), (:^,"pow"))
-        @eval Base.$f(x::$BID, y::$BID) = ccall(($(bidsym(w,c)), libbid), $BID, ($BID,$BID,Cuint,Ref{Cuint}), x, y, roundingmode[Threads.threadid()], zero(Cuint))
+        @eval Base.$f(x::$BID, y::$BID) = ccall(($(bidsym(w,c)), libbid), $BID, ($BID,$BID,Cuint,Ref{Cuint}), x, y, _roundingmode(), zero(Cuint))
     end
     @eval Base.copysign(x::$BID, y::$BID) = ccall(($(bidsym(w,"copySign")), libbid), $BID, ($BID,$BID,Ref{Cuint}), x, y, zero(Cuint))
 
     for f in (:exp,:log,:sin,:cos,:tan,:asin,:acos,:atan,:sinh,:cosh,:tanh,:asinh,:acosh,:atanh,:log1p,:expm1,:log10,:log2,:exp2,:exp10,:sqrt,:cbrt)
-        @eval Base.$f(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], flags), flags[], DomainError, x, mask=INVALID))
+        @eval Base.$f(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, _roundingmode(), flags), flags[], DomainError, x, mask=INVALID))
     end
     @eval Base.abs(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"abs")), libbid), $BID, ($BID,Ref{Cuint}), x, flags), flags[], DomainError, x, mask=INVALID))
 
@@ -545,17 +547,17 @@ for w in (32,64,128)
         @eval Base.$f(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,Ref{Cuint}), x, flags), flags[], DomainError, x, mask=INVALID))
     end
     @eval Base.:-(x::$BID) = ccall(($(bidsym(w,"negate")), libbid), $BID, ($BID,), x)
-    @eval Base.round(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"nearbyint")), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], flags), flags[], DomainError, x, mask=INVALID))
+    @eval Base.round(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"nearbyint")), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, _roundingmode(), flags), flags[], DomainError, x, mask=INVALID))
 
     @eval function SpecialFunctions.logabsgamma(x::$BID)
         isequal(modf(x)[1], -zero(x)) && return typemax(x), 1
         signgam = signbit(x) && mod(x, 2) > 1 ? -1 : 1
         flags = Ref(zero(Cuint))
-        y = @xchk(ccall(($(bidsym(w,:lgamma)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], flags), flags[], DomainError, x, mask=INVALID)
+        y = @xchk(ccall(($(bidsym(w,:lgamma)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, _roundingmode(), flags), flags[], DomainError, x, mask=INVALID)
         return y, signgam
     end
 
-    @eval SpecialFunctions.gamma(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,:tgamma)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], flags), flags[], DomainError, x, mask=INVALID))
+    @eval SpecialFunctions.gamma(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,:tgamma)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, _roundingmode(), flags), flags[], DomainError, x, mask=INVALID))
 
     @eval Random.rand(r::Random.AbstractRNG, ::Random.SamplerTrivial{Random.CloseOpen01{$BID}}) =  $BID(1, rand(r, zero($Ti):$Ti(maxintfloat($BID)) - one($Ti)), -(9 * $w ÷ 32 - 2))
 
@@ -570,8 +572,8 @@ for w in (32,64,128)
     for Tf in (Float32,Float64)
         bT = string("binary",sizeof(Tf)*8)
         @eval begin
-            Base.$(Symbol("$Tf"))(x::$BID) = ccall(($(bidsym(w,"to_",bT)), libbid), $Tf, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], zero(Cuint))
-            $BID(x::$Tf) = ccall(($(string("__",bT,"_to_","bid",w)), libbid), $BID, ($Tf,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], zero(Cuint))
+            Base.$(Symbol("$Tf"))(x::$BID) = ccall(($(bidsym(w,"to_",bT)), libbid), $Tf, ($BID,Cuint,Ref{Cuint}), x, _roundingmode(), zero(Cuint))
+            $BID(x::$Tf) = ccall(($(string("__",bT,"_to_","bid",w)), libbid), $BID, ($Tf,Cuint,Ref{Cuint}), x, _roundingmode(), zero(Cuint))
         end
     end
 
@@ -593,7 +595,7 @@ for w in (32,64,128)
         if w > w′
             @eval $BID(x::$BID′) = ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,Ref{Cuint}), x, zero(Cuint))
         elseif w < w′
-            @eval $BID(x::$BID′) = ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], zero(Cuint))
+            @eval $BID(x::$BID′) = ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,Cuint,Ref{Cuint}), x, _roundingmode(), zero(Cuint))
         end
 
         # promote binary*decimal -> decimal, for consistency with other operations above
@@ -606,7 +608,7 @@ for w in (32,64,128)
                 if w > w′
                     @eval $BID(x::$Ti′) = ccall(($(bidsym(w,"from_",i′str)), libbid), $BID, ($Ti′,Ref{Cuint}), x, zero(Cuint))
                 else
-                    @eval $BID(x::$Ti′) = ccall(($(bidsym(w,"from_",i′str)), libbid), $BID, ($Ti′,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], zero(Cuint))
+                    @eval $BID(x::$Ti′) = ccall(($(bidsym(w,"from_",i′str)), libbid), $BID, ($Ti′,Cuint,Ref{Cuint}), x, _roundingmode(), zero(Cuint))
                 end
             end
         end
