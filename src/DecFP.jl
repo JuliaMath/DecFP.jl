@@ -499,13 +499,20 @@ for w in (32,64,128)
         Base.signbit(x::$BID) = $(zero(Ti)) != $(Ti(1) << (Ti(w - 1))) & reinterpret($Ti, x)
         Base.sign(x::$BID) = ifelse(isnan(x) || iszero(x), x, ifelse(signbit(x), $(parse(T, "-1")), $(parse(T, "1"))))
 
-        # variants that save the exception flag
-        _nextfloat(x::$BID, flag::Ref{Cuint}) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, pinf128, flag)
-        _sub(x::$BID, y::$BID, flag::Ref{Cuint}) = ccall(($(bidsym(w,"sub")), libbid), $BID, ($BID,$BID,Cuint,Ref{Cuint}), x, y, _roundingmode(), flag)
-
         Base.nextfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, pinf128, zero(Cuint))
         Base.prevfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, minf128, zero(Cuint))
-        Base.eps(x::$BID) = ifelse(isfinite(x), (flags = Ref(zero(Cuint)); @xchk(_sub(_nextfloat(x, flags), x, flags), flags[], OverflowError, "$($BID) value overflow", mask=OVERFLOW)), $(parse(T, "NaN")))
+
+        function Base.eps(x::$BID)
+            if isfinite(x)
+                # diff = nextfloat(x) - x, but check flags (and inline so that Ref is not heap-allocated)
+                flags = Ref(zero(Cuint))
+                next = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, pinf128, flags)
+                diff = ccall(($(bidsym(w,"sub")), libbid), $BID, ($BID,$BID,Cuint,Ref{Cuint}), next, x, _roundingmode(), flags)
+                return @xchk(diff, flags[], OverflowError, "$($BID) value overflow", mask=OVERFLOW)
+            else
+                return $(parse(T, "NaN"))
+            end
+        end
 
         # the meaning of the exponent is different than for binary FP: it is 10^n, not 2^n:
         exponent10(x::$BID) = ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,Ref{Cuint}), x, zero(Cuint))
