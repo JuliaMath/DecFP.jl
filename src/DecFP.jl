@@ -60,7 +60,7 @@ end
 
 # internal task-local buffer for I/O and string conversions
 const _STRINGBUFFER_KEY = :DecFP_stringbuffer_abb78e082af23329 # unique key
-_stringbuffer() = get!(() -> fill(0x00, 1024), task_local_storage(), _STRINGBUFFER_KEY)::Vector{UInt8}
+_stringbuffer() = get!(() -> zeros(UInt8, 1024), task_local_storage(), _STRINGBUFFER_KEY)::Vector{UInt8}
 
 # status flags from bid_functions.h:
 const INVALID    = 0x01
