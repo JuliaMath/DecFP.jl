@@ -7,22 +7,11 @@ import Printf, Random, SpecialFunctions
 
 export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str, exponent10, ldexp10, sigexp
 
-const _buffer = Vector{Vector{UInt8}}()
-
-import Base.promote_rule, Base.RefArray
-
-const flags = [0x00000000]
-
-# clear exception flags and return x
-function nox(x)
-    flags[Threads.threadid()] = 0
-    return x
-end
+import Base.promote_rule
 
 # Check exception flags in mask & throw, otherwise returning x;
-# always clearing exceptions.  This is a macros so that
-# the error message is only evaluated if an exception occurs.
-macro xchk(x, exc, args...)
+# This is a macros so that the error message is only evaluated if an exception occurs.
+macro xchk(x, flags, exc, args...)
     mask=0x3f
     if !isempty(args) && Meta.isexpr(args[end], :(=)) && args[end].args[1] == :mask # mask=... keyword at end
         mask = esc(args[end].args[2])
@@ -30,12 +19,8 @@ macro xchk(x, exc, args...)
     end
     quote
         ret = $(esc(x))
-        if $exc === nothing
-            flags[Threads.threadid()] = 0
-        else
-            f = flags[Threads.threadid()]
-            flags[Threads.threadid()] = 0
-            f & $mask != 0 && throw($exc($(map(esc,args)...)))
+        if !isnothing($exc)
+            $(esc(flags)) & $mask != 0 && throw($exc($(map(esc,args)...)))
         end
         ret
     end
@@ -73,19 +58,9 @@ function Base.convert(::Type{RoundingMode}, r::DecFPRoundingMode)
     end
 end
 
-const roundingmode = [DecFPRoundNearest]
-
-# global vectors must be initialized at runtime (via __init__)
-function __init__()
-    resize!(_buffer, Threads.nthreads())
-    resize!(flags, Threads.nthreads())
-    resize!(roundingmode, Threads.nthreads())
-    for i = 1:Threads.nthreads()
-        _buffer[i] = fill(0x00, 1024)
-        flags[i] = 0x00000000
-        roundingmode[i] = DecFPRoundNearest
-    end
-end
+# internal task-local buffer for I/O and string conversions
+const _STRINGBUFFER_KEY = :DecFP_stringbuffer_abb78e082af23329 # unique key
+_stringbuffer() = get!(() -> zeros(UInt8, 1024), task_local_storage(), _STRINGBUFFER_KEY)::Vector{UInt8}
 
 # status flags from bid_functions.h:
 const INVALID    = 0x01
@@ -99,15 +74,21 @@ bidsym(w,s...) = string("__bid", w, "_", s...)
 
 abstract type DecimalFloatingPoint <: AbstractFloat end
 
-Base.Rounding.rounding_raw(::Type{T}) where {T<:DecimalFloatingPoint} =
-    roundingmode[Threads.threadid()]
+# fixme: make per-type? is task-local worth it or should we just make it global?
+const _ROUNDINGMODE_KEY = :DecFP_roundingmode_abb78e082af23329 # unique key
+_roundingmode() = get!(task_local_storage(), _ROUNDINGMODE_KEY, DecFPRoundNearest)::DecFPRoundingMode
+Base.Rounding.rounding_raw(::Type{T}) where {T<:DecimalFloatingPoint} = _roundingmode()
 Base.Rounding.setrounding_raw(::Type{T}, r::DecFPRoundingMode) where {T<:DecimalFloatingPoint} =
-    roundingmode[Threads.threadid()] = r
+    task_local_storage(_ROUNDINGMODE_KEY, r)
+Base.Rounding.setrounding_raw(f::Function, ::Type{T}, r::DecFPRoundingMode) where {T<:DecimalFloatingPoint} =
+    task_local_storage(f, _ROUNDINGMODE_KEY, r)
 
 Base.Rounding.rounding(::Type{T}) where {T<:DecimalFloatingPoint} =
     convert(RoundingMode, Base.Rounding.rounding_raw(T))
 Base.Rounding.setrounding(::Type{T}, r::RoundingMode) where {T<:DecimalFloatingPoint} =
     Base.Rounding.setrounding_raw(T, convert(DecFPRoundingMode, r))
+Base.Rounding.setrounding(f::Function, ::Type{T}, r::RoundingMode) where {T<:DecimalFloatingPoint} =
+    Base.Rounding.setrounding_raw(f, T, convert(DecFPRoundingMode, r))
 
 @static if Sys.ARCH == :arm64 || Sys.ARCH == :aarch64 || (isdefined(Base, :BinaryPlatforms) && Base.BinaryPlatforms.arch(Base.BinaryPlatforms.HostPlatform()) == "aarch64")
     # primitive types aren't working yet on ARM64 for some reason?
@@ -322,16 +303,15 @@ function Base.parse(::Type{T}, s::AbstractString) where {T<:DecimalFloatingPoint
     if isnan(x) && !isnanstr(s)
         throw(ArgumentError("invalid number format $s"))
     end
-    return @xchk(x, nothing)
+    return x
 end
 
 function Base.tryparse(::Type{T}, s::AbstractString) where {T<:DecimalFloatingPoint}
     x = _parse(T, s)
     if isnan(x) && !isnanstr(s)
-        @xchk(x, nothing)
         return nothing
     end
-    return @xchk(x, nothing)
+    return x
 end
 
 Base.tryparse_internal(::Type{T}, s::AbstractString, startpos::Int, endpos::Int) where {T<:DecimalFloatingPoint} =
@@ -346,15 +326,7 @@ for w in (32,64,128)
     Tsi = eval(Symbol(string("Int",w)))
     T = eval(BID)
 
-    # hack: we need an internal parsing function that doesn't check exceptions, since
-    # flags isn't defined until __init__ runs.  Similarly for nextfloat/prevfloat
-    @eval begin
-        _parse(::Type{$BID}, s::String) =
-            ccall(($(bidsym(w,"from_string")), libbid), $BID, (Cstring,Cuint,Ref{Cuint}), s, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid()))
-        _nextfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, pinf128, RefArray(flags, Threads.threadid()))
-        _prevfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, minf128, RefArray(flags, Threads.threadid()))
-        _sub(x::$BID, y::$BID) = ccall(($(bidsym(w,"sub")), libbid), $BID, ($BID,$BID,Cuint,Ref{Cuint}), x, y, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid()))
-    end
+    @eval _parse(::Type{$BID}, s::String) = ccall(($(bidsym(w,"from_string")), libbid), $BID, (Cstring,Cuint,Ref{Cuint}), s, _roundingmode(), zero(Cuint))
 
     @eval begin
         $BID(x::AbstractString) = parse($BID, x)
@@ -366,8 +338,8 @@ for w in (32,64,128)
         end
 
         function tostring(x::$BID)
-            # fills global _buffer
-            ccall(($(bidsym(w,"to_string")), libbid), Cvoid, (Ptr{UInt8},$BID,Ref{Cuint}), _buffer[Threads.threadid()], x, RefArray(flags, Threads.threadid()))
+            # fills global _stringbuffer
+            ccall(($(bidsym(w,"to_string")), libbid), Cvoid, (Ptr{UInt8},$BID,Ref{Cuint}), _stringbuffer(), x, zero(Cuint))
         end
 
         function Base.show(io::IO, x::$BID)
@@ -375,7 +347,7 @@ for w in (32,64,128)
             isinf(x) && (print(io, signbit(x) ? "-Inf" : "Inf"); return)
             x == 0 && (print(io, signbit(x) ? "-0.0" : "0.0"); return)
             tostring(x)
-            buffer = _buffer[Threads.threadid()]
+            buffer = _stringbuffer()
             if buffer[1] == UInt8('-')
                 print(io, '-')
             end
@@ -437,7 +409,7 @@ for w in (32,64,128)
                 return Int32(1), Int32(1), signbit(x)
             end
             tostring(rounded)
-            buffer = _buffer[Threads.threadid()]
+            buffer = _stringbuffer()
             trailing_zeros = 0
             i = 2
             while buffer[i] != UInt8('E')
@@ -483,7 +455,7 @@ for w in (32,64,128)
             rounded = round(ldexp10(x, n - 1 - normalized_exponent), RoundNearestTiesAway)
             rounded_exponent = exponent10(rounded)
             tostring(rounded)
-            buffer = _buffer[Threads.threadid()]
+            buffer = _stringbuffer()
             i = 2
             while buffer[i] != UInt8('E')
                 digits[i - 1] = buffer[i]
@@ -518,22 +490,33 @@ for w in (32,64,128)
             return signbit(x) ? -1 : 1, s, e
         end
 
-        Base.fma(x::$BID, y::$BID, z::$BID) = nox(ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID,Cuint,Ref{Cuint}), x, y, z, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())))
+        Base.fma(x::$BID, y::$BID, z::$BID) = ccall(($(bidsym(w,"fma")), libbid), $BID, ($BID,$BID,$BID,Cuint,Ref{Cuint}), x, y, z, _roundingmode(), zero(Cuint))
         Base.muladd(x::$BID, y::$BID, z::$BID) = fma(x,y,z) # faster than x+y*z
 
-        Base.one(::Union{Type{$BID},$BID}) = $(_parse(T, "1"))
-        Base.zero(::Union{Type{$BID},$BID}) = $(_parse(T, "0"))
+        Base.one(::Union{Type{$BID},$BID}) = $(parse(T, "1"))
+        Base.zero(::Union{Type{$BID},$BID}) = $(parse(T, "0"))
 
         Base.signbit(x::$BID) = $(zero(Ti)) != $(Ti(1) << (Ti(w - 1))) & reinterpret($Ti, x)
-        Base.sign(x::$BID) = ifelse(isnan(x) || iszero(x), x, ifelse(signbit(x), $(_parse(T, "-1")), $(_parse(T, "1"))))
+        Base.sign(x::$BID) = ifelse(isnan(x) || iszero(x), x, ifelse(signbit(x), $(parse(T, "-1")), $(parse(T, "1"))))
 
-        Base.nextfloat(x::$BID) = nox(_nextfloat(x))
-        Base.prevfloat(x::$BID) = nox(_prevfloat(x))
-        Base.eps(x::$BID) = ifelse(isfinite(x), @xchk(nextfloat(x) - x, OverflowError, "$($BID) value overflow", mask=OVERFLOW), $(_parse(T, "NaN")))
+        Base.nextfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, pinf128, zero(Cuint))
+        Base.prevfloat(x::$BID) = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, minf128, zero(Cuint))
+
+        function Base.eps(x::$BID)
+            if isfinite(x)
+                # diff = nextfloat(x) - x, but check flags (and inline so that Ref is not heap-allocated)
+                flags = Ref(zero(Cuint))
+                next = ccall(($(bidsym(w,"nexttoward")), libbid), $BID, ($BID,Dec128,Ref{Cuint}), x, pinf128, flags)
+                diff = ccall(($(bidsym(w,"sub")), libbid), $BID, ($BID,$BID,Cuint,Ref{Cuint}), next, x, _roundingmode(), flags)
+                return @xchk(diff, flags[], OverflowError, "$($BID) value overflow", mask=OVERFLOW)
+            else
+                return $(parse(T, "NaN"))
+            end
+        end
 
         # the meaning of the exponent is different than for binary FP: it is 10^n, not 2^n:
-        exponent10(x::$BID) = nox(ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())))
-        ldexp10(x::$BID, n::Integer) = nox(ccall(($(bidsym(w,"ldexp")), libbid), $BID, ($BID,Cint,Cuint,Ref{Cuint}), x, n, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())))
+        exponent10(x::$BID) = ccall(($(bidsym(w,"ilogb")), libbid), Cint, ($BID,Ref{Cuint}), x, zero(Cuint))
+        ldexp10(x::$BID, n::Integer) = ccall(($(bidsym(w,"ldexp")), libbid), $BID, ($BID,Cint,Cuint,Ref{Cuint}), x, n, _roundingmode(), zero(Cuint))
     end
 
     for (f,c) in ((:isnan,"isNaN"), (:isinf,"isInf"), (:isfinite,"isFinite"), (:issubnormal,"isSubnormal"))
@@ -541,62 +524,63 @@ for w in (32,64,128)
     end
 
     for (f,c) in ((:+,"add"), (:-,"sub"), (:*,"mul"), (:/, "div"), (:hypot,"hypot"), (:atan,"atan2"), (:^,"pow"))
-        @eval Base.$f(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,$BID,Cuint,Ref{Cuint}), x, y, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())))
+        @eval Base.$f(x::$BID, y::$BID) = ccall(($(bidsym(w,c)), libbid), $BID, ($BID,$BID,Cuint,Ref{Cuint}), x, y, _roundingmode(), zero(Cuint))
     end
-    @eval Base.copysign(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,"copySign")), libbid), $BID, ($BID,$BID,Ref{Cuint}), x, y, RefArray(flags, Threads.threadid())))
+    @eval Base.copysign(x::$BID, y::$BID) = ccall(($(bidsym(w,"copySign")), libbid), $BID, ($BID,$BID,Ref{Cuint}), x, y, zero(Cuint))
 
     for f in (:exp,:log,:sin,:cos,:tan,:asin,:acos,:atan,:sinh,:cosh,:tanh,:asinh,:acosh,:atanh,:log1p,:expm1,:log10,:log2,:exp2,:exp10,:sqrt,:cbrt)
-        @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
+        @eval Base.$f(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,f)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, _roundingmode(), flags), flags[], DomainError, x, mask=INVALID))
     end
-    @eval Base.abs(x::$BID) = @xchk(ccall(($(bidsym(w,"abs")), libbid), $BID, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
+    @eval Base.abs(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"abs")), libbid), $BID, ($BID,Ref{Cuint}), x, flags), flags[], DomainError, x, mask=INVALID))
 
-    @eval Base.rem(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,"fmod")), libbid), $BID, ($BID,$BID,Ref{Cuint}), x, y, RefArray(flags, Threads.threadid())))
-    @eval Base.rem(x::$BID, y::$BID, ::RoundingMode{:Nearest}) = nox(ccall(($(bidsym(w,"rem")), libbid), $BID, ($BID,$BID,Ref{Cuint}), x, y, RefArray(flags, Threads.threadid())))
+    @eval Base.rem(x::$BID, y::$BID) = ccall(($(bidsym(w,"fmod")), libbid), $BID, ($BID,$BID,Ref{Cuint}), x, y, zero(Cuint))
+    @eval Base.rem(x::$BID, y::$BID, ::RoundingMode{:Nearest}) = ccall(($(bidsym(w,"rem")), libbid), $BID, ($BID,$BID,Ref{Cuint}), x, y, zero(Cuint))
 
     @eval begin
         function Base.modf(x::$BID)
             ipart = Ref{$BID}()
-            fpart = nox(ccall(($(bidsym(w,"modf")), libbid), $BID, ($BID,Ref{$BID},Ref{Cuint}), x, ipart, RefArray(flags, Threads.threadid())))
+            fpart = ccall(($(bidsym(w,"modf")), libbid), $BID, ($BID,Ref{$BID},Ref{Cuint}), x, ipart, zero(Cuint))
             fpart, ipart[]
         end
     end
 
     for (f,c) in ((:trunc,"round_integral_zero"), (:floor,"round_integral_negative"), (:ceil,"round_integral_positive"))
-        @eval Base.$f(x::$BID) = @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
+        @eval Base.$f(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,Ref{Cuint}), x, flags), flags[], DomainError, x, mask=INVALID))
     end
-    @eval Base.:-(x::$BID) = @xchk(ccall(($(bidsym(w,"negate")), libbid), $BID, ($BID,), x), DomainError, x, mask=INVALID)
-    @eval Base.round(x::$BID) = @xchk(ccall(($(bidsym(w,"nearbyint")), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
+    @eval Base.:-(x::$BID) = ccall(($(bidsym(w,"negate")), libbid), $BID, ($BID,), x)
+    @eval Base.round(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"nearbyint")), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, _roundingmode(), flags), flags[], DomainError, x, mask=INVALID))
 
     @eval function SpecialFunctions.logabsgamma(x::$BID)
         isequal(modf(x)[1], -zero(x)) && return typemax(x), 1
         signgam = signbit(x) && mod(x, 2) > 1 ? -1 : 1
-        y = @xchk(ccall(($(bidsym(w,:lgamma)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
+        flags = Ref(zero(Cuint))
+        y = @xchk(ccall(($(bidsym(w,:lgamma)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, _roundingmode(), flags), flags[], DomainError, x, mask=INVALID)
         return y, signgam
     end
 
-    @eval SpecialFunctions.gamma(x::$BID) = @xchk(ccall(($(bidsym(w,:tgamma)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
+    @eval SpecialFunctions.gamma(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,:tgamma)), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, _roundingmode(), flags), flags[], DomainError, x, mask=INVALID))
 
     @eval Random.rand(r::Random.AbstractRNG, ::Random.SamplerTrivial{Random.CloseOpen01{$BID}}) =  $BID(1, rand(r, zero($Ti):$Ti(maxintfloat($BID)) - one($Ti)), -(9 * $w ÷ 32 - 2))
 
     for (r,c) in ((RoundingMode{:Nearest},"round_integral_nearest_even"), (RoundingMode{:NearestTiesAway},"round_integral_nearest_away"), (RoundingMode{:ToZero},"round_integral_zero"), (RoundingMode{:Up},"round_integral_positive"), (RoundingMode{:Down},"round_integral_negative"))
-        @eval Base.round(x::$BID, ::$r) = @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), DomainError, x, mask=INVALID)
+        @eval Base.round(x::$BID, ::$r) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,Ref{Cuint}), x, flags), flags[], DomainError, x, mask=INVALID))
     end
 
     for (f,c) in ((:(==),"quiet_equal"), (:>,"quiet_greater"), (:<,"quiet_less"), (:(>=), "quiet_greater_equal"), (:(<=), "quiet_less_equal"))
-        @eval Base.$f(x::$BID, y::$BID) = nox(ccall(($(bidsym(w,c)), libbid), Cint, ($BID,$BID,Ref{Cuint}), x, y, RefArray(flags, Threads.threadid())) != 0)
+        @eval Base.$f(x::$BID, y::$BID) = ccall(($(bidsym(w,c)), libbid), Cint, ($BID,$BID,Ref{Cuint}), x, y, zero(Cuint)) != 0
     end
 
     for Tf in (Float32,Float64)
         bT = string("binary",sizeof(Tf)*8)
         @eval begin
-            Base.$(Symbol("$Tf"))(x::$BID) = nox(ccall(($(bidsym(w,"to_",bT)), libbid), $Tf, ($BID,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())))
-            $BID(x::$Tf) = nox(ccall(($(string("__",bT,"_to_","bid",w)), libbid), $BID, ($Tf,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())))
+            Base.$(Symbol("$Tf"))(x::$BID) = ccall(($(bidsym(w,"to_",bT)), libbid), $Tf, ($BID,Cuint,Ref{Cuint}), x, _roundingmode(), zero(Cuint))
+            $BID(x::$Tf) = ccall(($(string("__",bT,"_to_","bid",w)), libbid), $BID, ($Tf,Cuint,Ref{Cuint}), x, _roundingmode(), zero(Cuint))
         end
     end
 
     for c in (:π, :e, :ℯ, :γ, :catalan, :φ)
         @eval begin
-            $BID(::Irrational{$(QuoteNode(c))}) = $(_parse(T, setprecision(256) do
+            $BID(::Irrational{$(QuoteNode(c))}) = $(parse(T, setprecision(256) do
                                                                                       string(BigFloat(getfield(MathConstants, c)))
                                                                                   end))
         end
@@ -610,9 +594,9 @@ for w in (32,64,128)
             @eval promote_rule(::Type{$BID}, ::Type{$BID′}) = $BID
         end
         if w > w′
-            @eval $BID(x::$BID′) = @xchk(ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), nothing)
+            @eval $BID(x::$BID′) = ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,Ref{Cuint}), x, zero(Cuint))
         elseif w < w′
-            @eval $BID(x::$BID′) = @xchk(ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())), nothing)
+            @eval $BID(x::$BID′) = ccall(($(string("__bid",w′,"_to_","bid",w)), libbid), $BID, ($BID′,Cuint,Ref{Cuint}), x, _roundingmode(), zero(Cuint))
         end
 
         # promote binary*decimal -> decimal, for consistency with other operations above
@@ -623,9 +607,9 @@ for w in (32,64,128)
             for (i′, i′str) in (("Int$w′", "int$w′"), ("UInt$w′", "uint$w′"))
                 Ti′ = eval(Symbol(i′))
                 if w > w′
-                    @eval $BID(x::$Ti′) = nox(ccall(($(bidsym(w,"from_",i′str)), libbid), $BID, ($Ti′,Ref{Cuint}), x, RefArray(flags, Threads.threadid())))
+                    @eval $BID(x::$Ti′) = ccall(($(bidsym(w,"from_",i′str)), libbid), $BID, ($Ti′,Ref{Cuint}), x, zero(Cuint))
                 else
-                    @eval $BID(x::$Ti′) = nox(ccall(($(bidsym(w,"from_",i′str)), libbid), $BID, ($Ti′,Cuint,Ref{Cuint}), x, roundingmode[Threads.threadid()], RefArray(flags, Threads.threadid())))
+                    @eval $BID(x::$Ti′) = ccall(($(bidsym(w,"from_",i′str)), libbid), $BID, ($Ti′,Cuint,Ref{Cuint}), x, _roundingmode(), zero(Cuint))
                 end
             end
         end
@@ -635,11 +619,11 @@ for w in (32,64,128)
         for (i′, i′str) in (("Int$w′", "int$w′"), ("UInt$w′", "uint$w′"))
             Ti′ = eval(Symbol(i′))
             @eval begin
-                Base.trunc(::Type{$Ti′}, x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xint")), libbid), $Ti′, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), InexactError, :trunc, $BID, x, mask=INVALID | OVERFLOW)
-                Base.floor(::Type{$Ti′}, x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), InexactError, :floor, $BID, x, mask=INVALID | OVERFLOW)
-                Base.ceil(::Type{$Ti′}, x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xceil")), libbid), $Ti′, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), InexactError, :ceil, $BID, x, mask=INVALID | OVERFLOW)
-                Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xrninta")), libbid), $Ti′, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), InexactError, :round, $BID, x, mask=INVALID | OVERFLOW)
-                Base.$(Symbol("$Ti′"))(x::$BID) = (x::$BID) = @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, RefArray(flags, Threads.threadid())), InexactError, :convert, $BID, x)
+                Base.trunc(::Type{$Ti′}, x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xint")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :trunc, $BID, x, mask=INVALID | OVERFLOW))
+                Base.floor(::Type{$Ti′}, x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :floor, $BID, x, mask=INVALID | OVERFLOW))
+                Base.ceil(::Type{$Ti′}, x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xceil")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :ceil, $BID, x, mask=INVALID | OVERFLOW))
+                Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xrninta")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :round, $BID, x, mask=INVALID | OVERFLOW))
+                Base.$(Symbol("$Ti′"))(x::$BID) = (x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :convert, $BID, x))
             end
 
             if w′ < w # integer conversion is exact
@@ -771,15 +755,15 @@ Base.:(>=)(num::Union{BigFloat,Float16,Float32,Float64,Integer}, dec::T) where {
 Base.:(<=)(num::Union{BigFloat,Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec >= num
 
 # used for next/prevfloat:
-const pinf128 = _parse(Dec128, "+Inf")
-const minf128 = _parse(Dec128, "-Inf")
+const pinf128 = parse(Dec128, "+Inf")
+const minf128 = parse(Dec128, "-Inf")
 
 for T in (Dec32, Dec64, Dec128)
     @eval begin
-        Base.eps(::Type{$T}) = $(_sub(_nextfloat(one(T)), one(T)))
-        Base.typemax(::Type{$T}) = $(_parse(T, "+inf"))
-        Base.typemin(::Type{$T}) = $(_parse(T, "-inf"))
-        Base.floatmax(::Type{$T}) = $(_prevfloat(_parse(T, "+inf")))
+        Base.eps(::Type{$T}) = $(nextfloat(one(T)) - one(T))
+        Base.typemax(::Type{$T}) = $(parse(T, "+inf"))
+        Base.typemin(::Type{$T}) = $(parse(T, "-inf"))
+        Base.floatmax(::Type{$T}) = $(prevfloat(parse(T, "+inf")))
     end
 end
 
