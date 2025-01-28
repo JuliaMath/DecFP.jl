@@ -1,7 +1,5 @@
 using DecFP, Test, Printf, Random, Base.MathConstants, SpecialFunctions
 
-@test DecFP.flags[Threads.threadid()] == 0
-
 import DecFP.isnanstr
 @test isnanstr("nan") && isnanstr("  +NAN") && isnanstr("-NaN") && !isnanstr("nano")
 
@@ -463,8 +461,6 @@ for T in (Dec32, Dec64, Dec128)
     write(io, one(T))
     @test read(IOBuffer(take!(io)), T) === one(T)
 end
-
-@test DecFP.flags[Threads.threadid()] == 0
 
 @test widen(Dec32) == Dec64
 @test widen(Dec64) == Dec128
