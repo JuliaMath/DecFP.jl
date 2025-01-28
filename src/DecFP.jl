@@ -7,8 +7,6 @@ import Printf, Random, SpecialFunctions
 
 export Dec32, Dec64, Dec128, @d_str, @d32_str, @d64_str, @d128_str, exponent10, ldexp10, sigexp
 
-const _buffer = Vector{Vector{UInt8}}()
-
 import Base.promote_rule
 
 # Check exception flags in mask & throw, otherwise returning x;
@@ -60,13 +58,9 @@ function Base.convert(::Type{RoundingMode}, r::DecFPRoundingMode)
     end
 end
 
-# global vectors must be initialized at runtime (via __init__)
-function __init__()
-    resize!(_buffer, Threads.nthreads())
-    for i = 1:Threads.nthreads()
-        _buffer[i] = fill(0x00, 1024)
-    end
-end
+# internal task-local buffer for I/O and string conversions
+const _STRINGBUFFER_KEY = :DecFP_stringbuffer_abb78e082af23329 # unique key
+_stringbuffer() = get!(() -> fill(0x00, 1024), task_local_storage(), _STRINGBUFFER_KEY)::Vector{UInt8}
 
 # status flags from bid_functions.h:
 const INVALID    = 0x01
@@ -344,8 +338,8 @@ for w in (32,64,128)
         end
 
         function tostring(x::$BID)
-            # fills global _buffer
-            ccall(($(bidsym(w,"to_string")), libbid), Cvoid, (Ptr{UInt8},$BID,Ref{Cuint}), _buffer[Threads.threadid()], x, zero(Cuint))
+            # fills global _stringbuffer
+            ccall(($(bidsym(w,"to_string")), libbid), Cvoid, (Ptr{UInt8},$BID,Ref{Cuint}), _stringbuffer(), x, zero(Cuint))
         end
 
         function Base.show(io::IO, x::$BID)
@@ -353,7 +347,7 @@ for w in (32,64,128)
             isinf(x) && (print(io, signbit(x) ? "-Inf" : "Inf"); return)
             x == 0 && (print(io, signbit(x) ? "-0.0" : "0.0"); return)
             tostring(x)
-            buffer = _buffer[Threads.threadid()]
+            buffer = _stringbuffer()
             if buffer[1] == UInt8('-')
                 print(io, '-')
             end
@@ -415,7 +409,7 @@ for w in (32,64,128)
                 return Int32(1), Int32(1), signbit(x)
             end
             tostring(rounded)
-            buffer = _buffer[Threads.threadid()]
+            buffer = _stringbuffer()
             trailing_zeros = 0
             i = 2
             while buffer[i] != UInt8('E')
@@ -461,7 +455,7 @@ for w in (32,64,128)
             rounded = round(ldexp10(x, n - 1 - normalized_exponent), RoundNearestTiesAway)
             rounded_exponent = exponent10(rounded)
             tostring(rounded)
-            buffer = _buffer[Threads.threadid()]
+            buffer = _stringbuffer()
             i = 2
             while buffer[i] != UInt8('E')
                 digits[i - 1] = buffer[i]
