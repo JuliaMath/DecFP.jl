@@ -140,6 +140,12 @@ for T in (Dec32, Dec64, Dec128)
     show(io, T("123.456")); @test String(take!(io)) == "123.456"
     show(io, T("0.00123456")); @test String(take!(io)) == "0.00123456"
 
+    # Printf
+    @test typeof(Printf.tofloat(T("1"))) == T
+
+    # printf %a
+    @test_throws Printf.InvalidFormatStringError @sprintf("%a", T("1"))
+
     # printf %g
     @test @sprintf("%.6g", T("12345670")) == "1.23457e+07"
     @test @sprintf("%.6g", T("1234567.0")) == "1.23457e+06"
@@ -203,6 +209,7 @@ for T in (Dec32, Dec64, Dec128)
     @test @sprintf("%+f", T("-1.234")) == "-1.234000"
     @test @sprintf("% f", T("-1.234")) == "-1.234000"
     @test @sprintf("%#f", T("1.234")) == "1.234000"
+    @test @sprintf("%.1f", T("1.234567")) == "1.2"
     @test @sprintf("%.2f", T("1.234")) == "1.23"
     @test @sprintf("%.2f", T("1.235")) == "1.24"
     @test @sprintf("%.2f", T("1.245")) == "1.24"
@@ -225,6 +232,8 @@ for T in (Dec32, Dec64, Dec128)
     @test @sprintf("%+ 09.1f", T("1.234")) == "+000001.2"
     @test @sprintf("%+ 09.0f", T("1.234")) == "+00000001"
     @test @sprintf("%+ #09.0f", T("1.234")) == "+0000001."
+    @test @sprintf("%.1f", T("0.0001")) == "0.0"
+    @test @sprintf("%#.0f", T("0.0001")) == "0."
 
     @test @sprintf("%+7.1f", T("9.96")) == "  +10.0"
     @test @sprintf("% 7.1f", T("9.96")) == "   10.0"
@@ -248,6 +257,8 @@ for T in (Dec32, Dec64, Dec128)
     @test @sprintf("% e", T("NaN")) == " NaN"
     @test @sprintf("% #e", T("NaN")) == " NaN"
     @test @sprintf("%07e", T("NaN")) == "    NaN"
+
+    @test @sprintf("%#.0e", T("0")) == "0.e+00"
 
     @test @sprintf("%8.0e", T("3e1")) == "   3e+01"
     @test @sprintf("%#8.0e", T("3e1")) == "  3.e+01"
