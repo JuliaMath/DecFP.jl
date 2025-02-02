@@ -144,7 +144,7 @@ for T in (Dec32, Dec64, Dec128)
     @test typeof(Printf.tofloat(T("1"))) == T
 
     # printf %a
-    @test_throws Printf.InvalidFormatStringError @sprintf("%a", T("1"))
+    @test_throws ArgumentError @sprintf("%a", T("1"))
 
     # printf %g
     @test @sprintf("%.6g", T("12345670")) == "1.23457e+07"

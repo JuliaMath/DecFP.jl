@@ -754,7 +754,7 @@ Printf.tofloat(x::DecimalFloatingPoint) = x
             end
         end
     elseif T == Val{'a'} || T == Val{'A'}
-        throw(Printf.InvalidFormatStringError("%a format specifier is not implemented for DecimalFloatingPoint", string(spec), 2, 2))
+        throw(ArgumentError("%a format specifier is not implemented for DecimalFloatingPoint"))
     end
     if newpos - pos < width
         # need to pad
