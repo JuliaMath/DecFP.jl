@@ -399,77 +399,6 @@ for w in (32,64,128)
             return
         end
 
-        function Printf.Printf.fix_dec(x::$BID, n::Int, digits)
-            if n > length(digits) - 1
-                n = length(digits) - 1
-            end
-            rounded = round(ldexp10(x, n), RoundNearestTiesAway)
-            if rounded == 0
-                digits[1] = UInt8('0')
-                return Int32(1), Int32(1), signbit(x)
-            end
-            tostring(rounded)
-            buffer = _stringbuffer()
-            trailing_zeros = 0
-            i = 2
-            while buffer[i] != UInt8('E')
-                digits[i - 1] = buffer[i]
-                if buffer[i] == UInt8('0')
-                    trailing_zeros += 1
-                else
-                    trailing_zeros = 0
-                end
-                i += 1
-            end
-            ndigits = i - 2
-            len = ndigits - trailing_zeros
-            i += 1
-            if buffer[i] == UInt8('+')
-                expsign = +1
-            elseif buffer[i] == UInt8('-')
-                expsign = -1
-            end
-            exponent = 0
-            i += 1
-            while buffer[i] != 0x00
-                exponent = exponent * 10 + buffer[i] - UInt8('0')
-                i += 1
-            end
-            exponent *= expsign
-            pt = ndigits + exponent - n
-            neg = signbit(x)
-            return Int32(len), Int32(pt), neg
-        end
-
-        function Printf.Printf.ini_dec(x::$BID, n::Int, digits)
-            if n > length(digits) - 1
-                n = length(digits) - 1
-            end
-            if x == 0
-                for i = 1:n
-                    digits[i] = UInt8('0')
-                end
-                return Int32(1), Int32(1), signbit(x)
-            end
-            normalized_exponent = exponent10(x)
-            rounded = round(ldexp10(x, n - 1 - normalized_exponent), RoundNearestTiesAway)
-            rounded_exponent = exponent10(rounded)
-            tostring(rounded)
-            buffer = _stringbuffer()
-            i = 2
-            while buffer[i] != UInt8('E')
-                digits[i - 1] = buffer[i]
-                i += 1
-            end
-            while i <= n + 1
-                digits[i - 1] = UInt8('0')
-                i += 1
-            end
-            pt = normalized_exponent + rounded_exponent - n + 2
-            neg = signbit(x)
-            return Int32(n), Int32(pt), neg
-        end
-
         function sigexp(x::$BID)
             isnan(x) && throw(DomainError(x, "sigexp(x) is not defined for NaN."))
             isinf(x) && throw(DomainError(x, "sigexp(x) is only defined for finite x."))
@@ -790,6 +719,8 @@ promote_rule(::Type{Irrational{s}}, T::Type{Complex{F}}) where {s,F<:DecimalFloa
 
 Base.widen(::Type{Dec32}) = Dec64
 Base.widen(::Type{Dec64}) = Dec128
+
+include("printf.jl")
 
 macro d_str(s, flags...) parse(Dec64, s) end
 macro d32_str(s, flags...) parse(Dec32, s) end
