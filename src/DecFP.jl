@@ -581,9 +581,9 @@ for (f) in (:trunc, :floor, :ceil)
     end
 end
 
-Signed(x::DecimalFloatingPoint) = Int(x)
-Unsigned(x::DecimalFloatingPoint) = UInt(x)
-Integer(x::DecimalFloatingPoint) = Int(x)
+Base.Signed(x::DecimalFloatingPoint) = Int(x)
+Base.Unsigned(x::DecimalFloatingPoint) = UInt(x)
+Base.Integer(x::DecimalFloatingPoint) = Int(x)
 
 function (::Type{I})(x::DecimalFloatingPoint) where {I<:Integer}
     x != trunc(x) && throw(InexactError(:convert, I, x))
