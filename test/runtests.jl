@@ -422,6 +422,15 @@ for T in (Dec32, Dec64, Dec128)
     io = IOBuffer()
     write(io, one(T))
     @test read(IOBuffer(take!(io)), T) === one(T)
+
+    # issue #176
+    @test T("1." * "0"^150, RoundUp) == T(1)
+    if T == Dec32
+        @test T("1" * "0"^50 * ".0", RoundUp) == T("1.0e50")
+    else
+        @test T("1" * "0"^150 * ".0", RoundUp) == T("1.0e150")
+    end
+    @test T("9." * "9"^(precision(T, base=10) - 1) * "0"^150 * "5", RoundUp) == T(10)
 end
 
 @test widen(Dec32) == Dec64
@@ -509,3 +518,7 @@ end
 @test DecFP._int_maxintfloat(Dec32) === UInt32(maxintfloat(Dec32))
 @test DecFP._int_maxintfloat(Dec64) === UInt64(maxintfloat(Dec64))
 @test DecFP._int_maxintfloat(Dec128) === UInt128(maxintfloat(Dec128))
+
+# issue #176
+@test Dec128(big(10)^1000, RoundUp) == Dec128("1e1000")
+@test d128"1e1000" == big(10)^1000
