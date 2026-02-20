@@ -671,17 +671,11 @@ function Base.:(==)(dec::DecimalFloatingPoint, rat::Rational)
 end
 
 Base.:(==)(dec::T, num::Union{BigFloat,Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec == T(num, RoundUp) == T(num, RoundDown)
-Base.:>(dec::T, num::Union{BigFloat,Float16,Float32,Float64,Integer,AbstractIrrational}) where {T<:DecimalFloatingPoint} = dec > T(num, RoundDown)
-Base.:<(dec::T, num::Union{BigFloat,Float16,Float32,Float64,Integer,AbstractIrrational}) where {T<:DecimalFloatingPoint} = dec < T(num, RoundUp)
-Base.:(>=)(dec::T, num::Union{BigFloat,Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec >= T(num, RoundUp)
-Base.:(<=)(dec::T, num::Union{BigFloat,Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec <= T(num, RoundDown)
-
-# canonicalize comparison order:
 Base.:(==)(num::Union{BigFloat,Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec == num
-Base.:>(num::Union{BigFloat,Float16,Float32,Float64,Integer,AbstractIrrational}, dec::T) where {T<:DecimalFloatingPoint} = dec < num
-Base.:<(num::Union{BigFloat,Float16,Float32,Float64,Integer,AbstractIrrational}, dec::T) where {T<:DecimalFloatingPoint} = dec > num
-Base.:(>=)(num::Union{BigFloat,Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec <= num
-Base.:(<=)(num::Union{BigFloat,Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} = dec >= num
+Base.:<(num::Union{BigFloat,Float16,Float32,Float64,Integer,AbstractIrrational}, dec::T) where {T<:DecimalFloatingPoint} = T(num, RoundDown) < dec
+Base.:<(dec::T, num::Union{BigFloat,Float16,Float32,Float64,Integer,AbstractIrrational}) where {T<:DecimalFloatingPoint} = dec < T(num, RoundUp)
+Base.:(<=)(num::Union{BigFloat,Float16,Float32,Float64,Integer}, dec::T) where {T<:DecimalFloatingPoint} =  T(num, RoundUp) <= dec
+Base.:(<=)(dec::T, num::Union{BigFloat,Float16,Float32,Float64,Integer}) where {T<:DecimalFloatingPoint} = dec <= T(num, RoundDown)
 
 # used for next/prevfloat:
 const pinf128 = parse(Dec128, "+Inf")
