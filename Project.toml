@@ -1,6 +1,6 @@
 name = "DecFP"
 uuid = "55939f99-70c6-5e9b-8bb0-5071ed7d61fd"
-version = "1.4.1"
+version = "1.4.2"
 
 [deps]
 DecFP_jll = "47200ebd-12ce-5be5-abb7-8e082af23329"
