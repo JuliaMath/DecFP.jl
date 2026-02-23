@@ -473,9 +473,6 @@ for w in (32,64,128)
         end
     end
 
-    for (f,c) in ((:trunc,"round_integral_zero"), (:floor,"round_integral_negative"), (:ceil,"round_integral_positive"))
-        @eval Base.$f(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,Ref{Cuint}), x, flags), flags[], DomainError, x, mask=INVALID))
-    end
     @eval Base.:-(x::$BID) = ccall(($(bidsym(w,"negate")), libbid), $BID, ($BID,), x)
     @eval Base.round(x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"nearbyint")), libbid), $BID, ($BID,Cuint,Ref{Cuint}), x, _roundingmode(), flags), flags[], DomainError, x, mask=INVALID))
 
@@ -548,9 +545,9 @@ for w in (32,64,128)
         for (i′, i′str) in (("Int$w′", "int$w′"), ("UInt$w′", "uint$w′"))
             Ti′ = eval(Symbol(i′))
             @eval begin
-                Base.trunc(::Type{$Ti′}, x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xint")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :trunc, $BID, x, mask=INVALID | OVERFLOW))
-                Base.floor(::Type{$Ti′}, x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :floor, $BID, x, mask=INVALID | OVERFLOW))
-                Base.ceil(::Type{$Ti′}, x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xceil")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :ceil, $BID, x, mask=INVALID | OVERFLOW))
+                Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:ToZero}) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xint")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :trunc, $BID, x, mask=INVALID | OVERFLOW))
+                Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:Down}) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :floor, $BID, x, mask=INVALID | OVERFLOW))
+                Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:Up}) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xceil")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :ceil, $BID, x, mask=INVALID | OVERFLOW))
                 Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xrninta")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :round, $BID, x, mask=INVALID | OVERFLOW))
                 Base.$(Symbol("$Ti′"))(x::$BID) = (x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :convert, $BID, x))
             end
@@ -568,17 +565,16 @@ end # widths w
 
 Base.round(x::DecimalFloatingPoint, ::RoundingMode{:FromZero}) = signbit(x) ? floor(x) : ceil(x)
 
-for (f) in (:trunc, :floor, :ceil)
-    @eval Base.$f(::Type{Signed}, x::DecimalFloatingPoint) = $f(Int, x)
-    @eval Base.$f(::Type{Unsigned}, x::DecimalFloatingPoint) = $f(UInt, x)
-    @eval Base.$f(::Type{Integer}, x::DecimalFloatingPoint) = $f(Int, x)
-
-    @eval function Base.$f(::Type{I}, x::DecimalFloatingPoint) where {I<:Integer}
-        x′ = $f(x)
-        typemin(I) <= x′ <= typemax(I) || throw(InexactError(Symbol($f), I, x))
-        _, s, e = sigexp(x′)
-        return I(flipsign(s * I(10)^e, x))
-    end
+for RM in (RoundingMode{:ToZero}, RoundingMode{:Down}, RoundingMode{:Up})
+    @eval Base.round(::Type{Signed}, x::DecimalFloatingPoint, r::$RM) = round(Int, x, r)
+    @eval Base.round(::Type{Unsigned}, x::DecimalFloatingPoint, r::$RM) = round(UInt, x, r)
+    @eval Base.round(::Type{Integer}, x::DecimalFloatingPoint, r::$RM) = round(Int, x, r)
+end
+function Base.round(::Type{I}, x::DecimalFloatingPoint, r::RoundingMode) where {I<:Integer}
+    x′ = round(x, r)
+    typemin(I) <= x′ <= typemax(I) || throw(InexactError(:round, I, x))
+    _, s, e = sigexp(x′)
+    return I(flipsign(s * I(10)^e, x))
 end
 
 Base.Signed(x::DecimalFloatingPoint) = Int(x)
@@ -599,10 +595,7 @@ function Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:NearestT
     y = floor(T, x)
     ifelse(x==y, y, copysign(floor(T, 2*x-y), x))
 end
-Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:ToZero}) where {T<:Integer} = trunc(T, x)
 Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:FromZero}) where {T<:Integer} = (x>=0 ? ceil(T, x) : floor(T, x))
-Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:Up}) where {T<:Integer} = ceil(T, x)
-Base.round(::Type{T}, x::DecimalFloatingPoint, ::RoundingMode{:Down}) where {T<:Integer} = floor(T, x)
 
 # the complex-sqrt function in base doesn't work for use, because it requires base-2 ldexp
 function Base.sqrt(z::Complex{T}) where {T<:DecimalFloatingPoint}
