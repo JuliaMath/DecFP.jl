@@ -1,0 +1,9 @@
+# Report coverage on PRs but never fail CI because of it.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
