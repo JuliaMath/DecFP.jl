@@ -577,6 +577,14 @@ function Base.round(::Type{I}, x::DecimalFloatingPoint, r::RoundingMode) where {
     return I(flipsign(s * I(10)^e, x))
 end
 
+# Julia < 1.11 lacks the generic `trunc/floor/ceil(::Type{T}, x) = round(T, x, mode)` fallbacks
+# (added in JuliaLang/julia#50812), so provide them for DecimalFloatingPoint.
+@static if VERSION < v"1.11"
+    Base.trunc(::Type{T}, x::DecimalFloatingPoint) where {T<:Integer} = round(T, x, RoundToZero)
+    Base.floor(::Type{T}, x::DecimalFloatingPoint) where {T<:Integer} = round(T, x, RoundDown)
+    Base.ceil(::Type{T}, x::DecimalFloatingPoint) where {T<:Integer} = round(T, x, RoundUp)
+end
+
 Base.Signed(x::DecimalFloatingPoint) = Int(x)
 Base.Unsigned(x::DecimalFloatingPoint) = UInt(x)
 Base.Integer(x::DecimalFloatingPoint) = Int(x)
