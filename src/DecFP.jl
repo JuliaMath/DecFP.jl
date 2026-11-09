@@ -495,7 +495,7 @@ for w in (32,64,128)
         @eval Base.round(x::$BID, ::$r) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,c)), libbid), $BID, ($BID,Ref{Cuint}), x, flags), flags[], DomainError, x, mask=INVALID))
     end
 
-    for (f,c) in ((:(==),"quiet_equal"), (:>,"quiet_greater"), (:<,"quiet_less"), (:(>=), "quiet_greater_equal"), (:(<=), "quiet_less_equal"))
+    for (f,c) in ((:(==),"quiet_equal"), (:<,"quiet_less"), (:(<=), "quiet_less_equal"))
         @eval Base.$f(x::$BID, y::$BID) = ccall(($(bidsym(w,c)), libbid), Cint, ($BID,$BID,Ref{Cuint}), x, y, zero(Cuint)) != 0
     end
 
