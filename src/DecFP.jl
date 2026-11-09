@@ -204,7 +204,7 @@ for w in (32,64,128)
 
     @eval $BID(x::AbstractIrrational, r::RoundingMode) = $BID(string(BigFloat(x, precision=256)), r)
 
-    @eval $BID(x::Union{Int8,UInt8,Int16,UInt16}) = $BID(Int32(x))
+    @eval $BID(x::Union{Bool,Int8,UInt8,Int16,UInt16}) = $BID(Int32(x))
     @eval $BID(x::Float16) = $BID(Float32(x))
 
     @eval $BID(x::Rational{T}) where {T} = $BID(x.num) / $BID(x.den)
@@ -584,6 +584,13 @@ end
 Base.Signed(x::DecimalFloatingPoint) = Int(x)
 Base.Unsigned(x::DecimalFloatingPoint) = UInt(x)
 Base.Integer(x::DecimalFloatingPoint) = Int(x)
+Base.Bool(x::DecimalFloatingPoint) = x == 0 ? false : x == 1 ? true : throw(InexactError(:Bool, Bool, x))
+
+# The generic ::Type{I<:Integer} methods above construct I(10), which fails for Bool, and on
+# Julia < 1.11 they are also ambiguous with Base's (::Type{Bool}, ::AbstractFloat) methods.
+for f in (:trunc, :floor, :ceil, :round)
+    @eval Base.$f(::Type{Bool}, x::DecimalFloatingPoint) = Bool($f(Int, x))
+end
 
 function (::Type{I})(x::DecimalFloatingPoint) where {I<:Integer}
     x != trunc(x) && throw(InexactError(:convert, I, x))

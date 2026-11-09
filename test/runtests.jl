@@ -1,4 +1,9 @@
 using DecFP, Test, Printf, Random, Base.MathConstants, SpecialFunctions
+using Aqua
+
+@testset "Aqua" begin
+    Aqua.test_all(DecFP)
+end
 
 include("printf.jl")
 
@@ -361,6 +366,14 @@ for T in (Dec32, Dec64, Dec128)
     @test round(T(2.5), RoundNearestTiesAway) === round(T(3.3), RoundNearestTiesAway) === T(3)
     @test round(T(2.5), RoundNearestTiesUp) === round(T(3.3), RoundNearestTiesUp) === T(3)
 
+    @test T(true) === T(1) && T(false) === T(0)
+    @test Bool(T(1)) === true && Bool(T(0)) === false && Bool(-T(0)) === false
+    @test_throws InexactError Bool(T(2))
+    @test_throws InexactError Bool(T(NaN))
+    @test trunc(Bool, T(1.5)) === floor(Bool, T(1.5)) === round(Bool, T(1.2)) === ceil(Bool, T(0.5)) === true
+    @test trunc(Bool, T(-0.5)) === floor(Bool, T(0.5)) === round(Bool, T(0.2)) === ceil(Bool, T(-0.5)) === false
+    @test_throws InexactError trunc(Bool, T(2))
+    @test_throws InexactError floor(Bool, T(-1))
     for Ti in (Integer,Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Int128,UInt128)
         if Ti != Integer
             @test parse(T, "17") == T(Ti(17)) == Ti(17) == Ti(T(17))
