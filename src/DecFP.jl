@@ -552,7 +552,7 @@ for w in (32,64,128)
                 Base.floor(::Type{$Ti′}, x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :floor, $Ti′, x, mask=INVALID | OVERFLOW))
                 Base.ceil(::Type{$Ti′}, x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xceil")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :ceil, $Ti′, x, mask=INVALID | OVERFLOW))
                 Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xrninta")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :round, $Ti′, x, mask=INVALID | OVERFLOW))
-                Base.$(Symbol("$Ti′"))(x::$BID) = (x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :convert, $Ti′, x))
+                Base.$(Symbol("$Ti′"))(x::$BID) = (x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, $(QuoteNode(Symbol(i′))), $Ti′, x))
             end
 
             if w′ < w # integer conversion is exact
@@ -586,8 +586,8 @@ Base.Unsigned(x::DecimalFloatingPoint) = UInt(x)
 Base.Integer(x::DecimalFloatingPoint) = Int(x)
 
 function (::Type{I})(x::DecimalFloatingPoint) where {I<:Integer}
-    x != trunc(x) && throw(InexactError(:convert, I, x))
-    typemin(I) <= x <= typemax(I) || throw(InexactError(:convert, I, x))
+    x != trunc(x) && throw(InexactError(nameof(I), I, x))
+    typemin(I) <= x <= typemax(I) || throw(InexactError(nameof(I), I, x))
     _, s, e = sigexp(x)
     return I(flipsign(s * I(10)^e, x))
 end
