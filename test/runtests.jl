@@ -387,6 +387,8 @@ for T in (Dec32, Dec64, Dec128)
             @test_throws InexactError convert(Ti, yd)
         end
     end
+    @test_throws InexactError(:trunc, Int8, T(1000)) trunc(Int8, T(1000))
+    @test_throws InexactError(:convert, Int8, T(1000)) Int8(T(1000))
 
     @test rounding(T) == RoundNearest
     for mode in (RoundNearest, RoundToZero, RoundFromZero, RoundUp, RoundDown)

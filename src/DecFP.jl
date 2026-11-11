@@ -548,11 +548,11 @@ for w in (32,64,128)
         for (i′, i′str) in (("Int$w′", "int$w′"), ("UInt$w′", "uint$w′"))
             Ti′ = eval(Symbol(i′))
             @eval begin
-                Base.trunc(::Type{$Ti′}, x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xint")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :trunc, $BID, x, mask=INVALID | OVERFLOW))
-                Base.floor(::Type{$Ti′}, x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :floor, $BID, x, mask=INVALID | OVERFLOW))
-                Base.ceil(::Type{$Ti′}, x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xceil")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :ceil, $BID, x, mask=INVALID | OVERFLOW))
-                Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xrninta")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :round, $BID, x, mask=INVALID | OVERFLOW))
-                Base.$(Symbol("$Ti′"))(x::$BID) = (x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :convert, $BID, x))
+                Base.trunc(::Type{$Ti′}, x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xint")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :trunc, $Ti′, x, mask=INVALID | OVERFLOW))
+                Base.floor(::Type{$Ti′}, x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :floor, $Ti′, x, mask=INVALID | OVERFLOW))
+                Base.ceil(::Type{$Ti′}, x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xceil")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :ceil, $Ti′, x, mask=INVALID | OVERFLOW))
+                Base.round(::Type{$Ti′}, x::$BID, ::RoundingMode{:NearestTiesAway}) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xrninta")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :round, $Ti′, x, mask=INVALID | OVERFLOW))
+                Base.$(Symbol("$Ti′"))(x::$BID) = (x::$BID) = (flags = Ref(zero(Cuint)); @xchk(ccall(($(bidsym(w,"to_",i′str,"_xfloor")), libbid), $Ti′, ($BID,Ref{Cuint}), x, flags), flags[], InexactError, :convert, $Ti′, x))
             end
 
             if w′ < w # integer conversion is exact
