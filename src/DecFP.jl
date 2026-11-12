@@ -575,7 +575,7 @@ for (f) in (:trunc, :floor, :ceil)
 
     @eval function Base.$f(::Type{I}, x::DecimalFloatingPoint) where {I<:Integer}
         x′ = $f(x)
-        typemin(I) <= x′ <= typemax(I) || throw(InexactError(Symbol($f), I, x))
+        (Base.hastypemax(I) ? typemin(I) <= x′ <= typemax(I) : isfinite(x′)) || throw(InexactError(Symbol($f), I, x))
         _, s, e = sigexp(x′)
         return I(flipsign(s * I(10)^e, x))
     end
@@ -587,7 +587,7 @@ Base.Integer(x::DecimalFloatingPoint) = Int(x)
 
 function (::Type{I})(x::DecimalFloatingPoint) where {I<:Integer}
     x != trunc(x) && throw(InexactError(nameof(I), I, x))
-    typemin(I) <= x <= typemax(I) || throw(InexactError(nameof(I), I, x))
+    (Base.hastypemax(I) ? typemin(I) <= x <= typemax(I) : isfinite(x)) || throw(InexactError(nameof(I), I, x))
     _, s, e = sigexp(x)
     return I(flipsign(s * I(10)^e, x))
 end

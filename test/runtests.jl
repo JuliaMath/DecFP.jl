@@ -391,6 +391,18 @@ for T in (Dec32, Dec64, Dec128)
     @test_throws InexactError(:Int8, Int8, T(1000)) Int8(T(1000))
     @test_throws InexactError(:Int128, Int128, T(1.5)) Int128(T(1.5))
 
+    # BigInt has no typemin/typemax
+    @test trunc(BigInt, T(2.5)) isa BigInt
+    @test trunc(BigInt, T(2.5)) == floor(BigInt, T(2.5)) == round(BigInt, T(2.5)) == round(BigInt, T(2.5), RoundToZero) == round(BigInt, T(2.5), RoundDown) == 2
+    @test ceil(BigInt, T(2.5)) == round(BigInt, T(2.5), RoundUp) == round(BigInt, T(2.5), RoundFromZero) == round(BigInt, T(2.5), RoundNearestTiesAway) == round(BigInt, T(2.5), RoundNearestTiesUp) == 3
+    @test trunc(BigInt, T(-2.5)) == ceil(BigInt, T(-2.5)) == round(BigInt, T(-2.5)) == round(BigInt, T(-2.5), RoundNearestTiesUp) == -2
+    @test floor(BigInt, T(-2.5)) == round(BigInt, T(-2.5), RoundFromZero) == round(BigInt, T(-2.5), RoundNearestTiesAway) == -3
+    @test BigInt(T(2)) == convert(BigInt, T(2)) == -BigInt(T(-2)) == 2
+    @test BigInt(parse(T, "1e30")) == trunc(BigInt, parse(T, "1e30")) == -BigInt(parse(T, "-1e30")) == big(10)^30
+    @test_throws InexactError BigInt(T(2.5))
+    @test_throws InexactError trunc(BigInt, T(Inf))
+    @test_throws InexactError trunc(BigInt, T(NaN))
+
     @test rounding(T) == RoundNearest
     for mode in (RoundNearest, RoundToZero, RoundFromZero, RoundUp, RoundDown)
         setrounding(T, mode) do
