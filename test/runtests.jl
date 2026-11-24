@@ -1,4 +1,10 @@
 using DecFP, Test, Printf, Random, Base.MathConstants, SpecialFunctions
+using Aqua
+
+@testset "Aqua" begin
+    # `Bool(::DecimalFloatingPoint)` is ambiguous until https://github.com/JuliaMath/DecFP.jl/pull/210 is merged
+    Aqua.test_all(DecFP; ambiguities=(broken=true,))
+end
 
 include("printf.jl")
 
