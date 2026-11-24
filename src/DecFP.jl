@@ -586,8 +586,8 @@ Base.Unsigned(x::DecimalFloatingPoint) = UInt(x)
 Base.Integer(x::DecimalFloatingPoint) = Int(x)
 Base.Bool(x::DecimalFloatingPoint) = x == 0 ? false : x == 1 ? true : throw(InexactError(:Bool, Bool, x))
 
-# The generic ::Type{I<:Integer} methods above construct I(10), which fails for Bool, and on
-# Julia < 1.11 they are also ambiguous with Base's (::Type{Bool}, ::AbstractFloat) methods.
+# The generic `I<:Integer` methods construct `I(10)`, which fails for `Bool`; on some Julia
+# versions (e.g. 1.10) they are also ambiguous with Base's `(::Type{Bool}, ::AbstractFloat)` methods.
 for f in (:trunc, :floor, :ceil, :round)
     @eval Base.$f(::Type{Bool}, x::DecimalFloatingPoint) = Bool($f(x))
 end

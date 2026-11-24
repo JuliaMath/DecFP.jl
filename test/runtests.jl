@@ -375,6 +375,10 @@ for T in (Dec32, Dec64, Dec128)
     @test_throws InexactError(:Bool, Bool, T(2)) trunc(Bool, T(2))
     @test_throws InexactError(:Bool, Bool, T(-1)) floor(Bool, T(-1))
     @test_throws InexactError trunc(Bool, T(NaN))
+    for (m, r) in ((RoundNearest, false), (RoundNearestTiesAway, true), (RoundNearestTiesUp, true), (RoundToZero, false), (RoundFromZero, true), (RoundUp, true), (RoundDown, false))
+        @test round(Bool, T(0.5), m) === r
+    end
+    @test round(Bool, T(-0.5), RoundNearestTiesUp) === false
     for Ti in (Integer,Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Int128,UInt128)
         if Ti != Integer
             @test parse(T, "17") == T(Ti(17)) == Ti(17) == Ti(T(17))
