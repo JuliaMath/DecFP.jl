@@ -393,6 +393,16 @@ for T in (Dec32, Dec64, Dec128)
             @test_throws InexactError convert(Ti, yd)
         end
     end
+
+    # PR #218
+    @test round(Int, parse(T, "-0.5000001"), RoundNearestTiesUp) === -1
+    @test round(UInt8, T(-0.5), RoundNearestTiesUp) === 0x00
+    for s in ("0.5", "1.5", "2.5", "123456.5", "0.4999999", "0.5000001")
+        for x in (parse(T, s), -parse(T, s))
+            @test round(Int, x, RoundNearestTiesUp) === Int(round(x, RoundNearestTiesUp))
+        end
+    end
+
     @test_throws InexactError(:trunc, Int8, T(1000)) trunc(Int8, T(1000))
     @test_throws InexactError(:Int8, Int8, T(1000)) Int8(T(1000))
     @test_throws InexactError(:Int128, Int128, T(1.5)) Int128(T(1.5))
