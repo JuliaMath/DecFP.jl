@@ -372,8 +372,9 @@ for T in (Dec32, Dec64, Dec128)
     @test_throws InexactError Bool(T(NaN))
     @test trunc(Bool, T(1.5)) === floor(Bool, T(1.5)) === round(Bool, T(1.2)) === ceil(Bool, T(0.5)) === true
     @test trunc(Bool, T(-0.5)) === floor(Bool, T(0.5)) === round(Bool, T(0.2)) === ceil(Bool, T(-0.5)) === false
-    @test_throws InexactError trunc(Bool, T(2))
-    @test_throws InexactError floor(Bool, T(-1))
+    @test_throws InexactError(:Bool, Bool, T(2)) trunc(Bool, T(2))
+    @test_throws InexactError(:Bool, Bool, T(-1)) floor(Bool, T(-1))
+    @test_throws InexactError trunc(Bool, T(NaN))
     for Ti in (Integer,Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Int128,UInt128)
         if Ti != Integer
             @test parse(T, "17") == T(Ti(17)) == Ti(17) == Ti(T(17))

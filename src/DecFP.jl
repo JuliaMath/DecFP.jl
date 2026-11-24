@@ -589,7 +589,7 @@ Base.Bool(x::DecimalFloatingPoint) = x == 0 ? false : x == 1 ? true : throw(Inex
 # The generic ::Type{I<:Integer} methods above construct I(10), which fails for Bool, and on
 # Julia < 1.11 they are also ambiguous with Base's (::Type{Bool}, ::AbstractFloat) methods.
 for f in (:trunc, :floor, :ceil, :round)
-    @eval Base.$f(::Type{Bool}, x::DecimalFloatingPoint) = Bool($f(Int, x))
+    @eval Base.$f(::Type{Bool}, x::DecimalFloatingPoint) = Bool($f(x))
 end
 
 function (::Type{I})(x::DecimalFloatingPoint) where {I<:Integer}
