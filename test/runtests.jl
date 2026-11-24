@@ -2,8 +2,7 @@ using DecFP, Test, Printf, Random, Base.MathConstants, SpecialFunctions
 using Aqua
 
 @testset "Aqua" begin
-    # `Bool(::DecimalFloatingPoint)` is ambiguous until https://github.com/JuliaMath/DecFP.jl/pull/210 is merged
-    Aqua.test_all(DecFP; ambiguities=(broken=true,))
+    Aqua.test_all(DecFP)
 end
 
 include("printf.jl")
@@ -367,6 +366,19 @@ for T in (Dec32, Dec64, Dec128)
     @test round(T(2.5), RoundNearestTiesAway) === round(T(3.3), RoundNearestTiesAway) === T(3)
     @test round(T(2.5), RoundNearestTiesUp) === round(T(3.3), RoundNearestTiesUp) === T(3)
 
+    @test T(true) === T(1) && T(false) === T(0)
+    @test Bool(T(1)) === true && Bool(T(0)) === false && Bool(-T(0)) === false
+    @test_throws InexactError Bool(T(2))
+    @test_throws InexactError Bool(T(NaN))
+    @test trunc(Bool, T(1.5)) === floor(Bool, T(1.5)) === round(Bool, T(1.2)) === ceil(Bool, T(0.5)) === true
+    @test trunc(Bool, T(-0.5)) === floor(Bool, T(0.5)) === round(Bool, T(0.2)) === ceil(Bool, T(-0.5)) === false
+    @test_throws InexactError(:Bool, Bool, T(2)) trunc(Bool, T(2))
+    @test_throws InexactError(:Bool, Bool, T(-1)) floor(Bool, T(-1))
+    @test_throws InexactError trunc(Bool, T(NaN))
+    for (m, r) in ((RoundNearest, false), (RoundNearestTiesAway, true), (RoundNearestTiesUp, true), (RoundToZero, false), (RoundFromZero, true), (RoundUp, true), (RoundDown, false))
+        @test round(Bool, T(0.5), m) === r
+    end
+    @test round(Bool, T(-0.5), RoundNearestTiesUp) === false
     for Ti in (Integer,Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Int128,UInt128)
         if Ti != Integer
             @test parse(T, "17") == T(Ti(17)) == Ti(17) == Ti(T(17))
